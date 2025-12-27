@@ -49,6 +49,11 @@ npm run dev
 
 前端页面地址：`http://localhost:5173`
 
+<<<<<<< ours
+=======
+> 如果出现 `npm` 未识别错误，请先安装 Node.js（包含 npm）。
+
+>>>>>>> theirs
 ## 接口说明
 
 ### 上传
