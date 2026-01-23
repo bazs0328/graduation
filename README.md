@@ -71,6 +71,38 @@ curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d
 curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+### Dev scripts
+
+Run smoke test (requires docker compose already running):
+
+```
+bash backend/scripts/dev_smoke.sh
+```
+
+Run inside container (no local bash required):
+
+```
+docker compose exec backend sh /app/scripts/dev_smoke.sh
+```
+
+PowerShell alternative (Windows):
+
+```
+powershell -ExecutionPolicy Bypass -File backend/scripts/dev_smoke.ps1
+```
+
+Reset DB + remove local index files (dev only):
+
+```
+bash backend/scripts/reset_db.sh
+```
+
+PowerShell alternative (Windows):
+
+```
+powershell -ExecutionPolicy Bypass -File backend/scripts/reset_db.ps1
+```
+
 ### Health check
 
 ```

@@ -21,6 +21,8 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/data:/app/data
+      - ./backend/scripts:/app/scripts:ro
+      - ./sample.md:/app/sample.md:ro
     environment:
       MYSQL_HOST: ${MYSQL_HOST:-db}
       MYSQL_PORT: ${MYSQL_PORT:-3306}
