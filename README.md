@@ -16,6 +16,23 @@
    docker compose up --build
    ```
 
+### Migrations (Alembic)
+
+Run migrations inside the backend container:
+
+```
+docker compose exec backend alembic upgrade head
+```
+
+Rollback one step:
+
+```
+docker compose exec backend alembic downgrade -1
+```
+
+Notes:
+- `DATABASE_URL` is supported (optional). If not set, it falls back to `MYSQL_*` variables.
+
 ### Health check
 
 ```
