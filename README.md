@@ -65,6 +65,12 @@ Notes:
 curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+### Chat (minimal RAG)
+
+```
+curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
+```
+
 ### Health check
 
 ```

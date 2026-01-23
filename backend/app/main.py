@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.services.document_parser import build_chunks, extract_text
 from app.services.embeddings import HashEmbedder
 from app.services.index_manager import IndexManager
+from app.services.llm.mock import MockLLM
 from .settings import load_settings
 
 app = FastAPI()
@@ -16,6 +17,8 @@ index_manager = IndexManager(
     index_path=settings.faiss_index_path,
     mapping_path=settings.faiss_mapping_path,
 )
+llm_client = MockLLM()
+MAX_CONTEXT_LENGTH = 4000
 
 
 @app.on_event("startup")
@@ -105,3 +108,59 @@ def search(request: SearchRequest, db: Session = Depends(get_db)):
 
     results = index_manager.search(request.query, request.top_k, db)
     return results
+
+
+class ChatRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(5, ge=1)
+
+
+@app.post("/chat")
+def chat(request: ChatRequest, db: Session = Depends(get_db)):
+    if not index_manager.is_ready():
+        raise HTTPException(status_code=409, detail="Index not built. Call POST /index/rebuild first.")
+
+    results = index_manager.search(request.query, request.top_k, db)
+    if not results:
+        return {"answer": "资料中未找到相关内容", "sources": []}
+
+    chunk_ids = [item["chunk_id"] for item in results]
+    chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
+    chunks_by_id = {chunk.id: (chunk.text or "") for chunk in chunks}
+
+    query_text = request.query.strip().lower()
+    matched_results = []
+    for item in results:
+        text = chunks_by_id.get(item["chunk_id"], "")
+        if query_text and query_text in text.lower():
+            matched_results.append(item)
+
+    if not matched_results:
+        return {"answer": "资料中未找到相关内容", "sources": []}
+
+    context_parts = []
+    total_len = 0
+    for item in matched_results:
+        text = chunks_by_id.get(item["chunk_id"], "")
+        if not text:
+            continue
+        remaining = MAX_CONTEXT_LENGTH - total_len
+        if remaining <= 0:
+            break
+        snippet = text[:remaining]
+        context_parts.append(snippet)
+        total_len += len(snippet)
+        if total_len >= MAX_CONTEXT_LENGTH:
+            break
+
+    context = "\n\n".join(context_parts).strip()
+    if not context:
+        return {"answer": "资料中未找到相关内容", "sources": []}
+
+    answer = llm_client.generate_answer(request.query, context)
+    sources = [
+        {"chunk_id": item["chunk_id"], "document_id": item["document_id"], "score": item["score"]}
+        for item in matched_results
+    ]
+
+    return {"answer": answer, "sources": sources}
