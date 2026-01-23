@@ -10,6 +10,7 @@ from app.db.models import Chunk
 from app.services.embeddings import Embedder
 
 logger = logging.getLogger("uvicorn.error")
+PREVIEW_LENGTH = 200
 
 
 class IndexManager:
@@ -81,3 +82,50 @@ class IndexManager:
             "dim": self.dim,
             "index_path": str(self.index_path),
         }
+
+    def is_ready(self) -> bool:
+        return self.index is not None
+
+    def search(self, query: str, top_k: int, db: Session) -> List[Dict[str, Any]]:
+        if self.index is None:
+            return []
+
+        if self.index.ntotal == 0:
+            return []
+
+        vectors = self.embedder.embed_texts([query])
+        k = min(top_k, self.index.ntotal)
+        distances, indices = self.index.search(vectors, k)
+
+        ordered_indices = [int(idx) for idx in indices[0] if idx >= 0]
+        chunk_ids = []
+        for idx in ordered_indices:
+            if idx < len(self.mapping):
+                chunk_ids.append(self.mapping[idx]["chunk_id"])
+
+        if not chunk_ids:
+            return []
+
+        chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
+        chunks_by_id = {chunk.id: chunk for chunk in chunks}
+
+        results: List[Dict[str, Any]] = []
+        for rank, idx in enumerate(ordered_indices):
+            if idx >= len(self.mapping):
+                continue
+            mapping = self.mapping[idx]
+            chunk = chunks_by_id.get(mapping["chunk_id"])
+            if not chunk:
+                continue
+            preview = (chunk.text or "")[:PREVIEW_LENGTH]
+            results.append(
+                {
+                    "chunk_id": chunk.id,
+                    "document_id": chunk.document_id,
+                    "score": float(distances[0][rank]),
+                    "text_preview": preview,
+                    "metadata": chunk.metadata_json,
+                }
+            )
+
+        return results

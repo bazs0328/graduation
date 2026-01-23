@@ -59,6 +59,12 @@ Notes:
 - Index files are persisted under `backend/data` (mounted to `/app/data` in the container).
 - On startup, the backend will load the index if present, otherwise it logs that rebuild is required.
 
+### Search (no LLM)
+
+```
+curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
+```
+
 ### Health check
 
 ```

@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.models import Chunk, Document
@@ -90,3 +91,17 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
 @app.post("/index/rebuild")
 def rebuild_index(db: Session = Depends(get_db)):
     return index_manager.rebuild(db)
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(5, ge=1)
+
+
+@app.post("/search")
+def search(request: SearchRequest, db: Session = Depends(get_db)):
+    if not index_manager.is_ready():
+        raise HTTPException(status_code=409, detail="Index not built. Call POST /index/rebuild first.")
+
+    results = index_manager.search(request.query, request.top_k, db)
+    return results
