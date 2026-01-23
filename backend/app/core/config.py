@@ -11,6 +11,9 @@ class Settings:
     mysql_password: str
     mysql_database: str
     database_url: str
+    data_dir: str
+    faiss_index_path: str
+    faiss_mapping_path: str
 
 
 def _build_database_url(
@@ -34,6 +37,7 @@ def load_settings() -> Settings:
     mysql_user = os.getenv("MYSQL_USER", "app_user")
     mysql_password = os.getenv("MYSQL_PASSWORD", "app_pass")
     mysql_database = os.getenv("MYSQL_DATABASE", "app_db")
+    data_dir = os.getenv("DATA_DIR", "data")
 
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -45,6 +49,9 @@ def load_settings() -> Settings:
             mysql_database=mysql_database,
         )
 
+    faiss_index_path = os.path.join(data_dir, "faiss.index")
+    faiss_mapping_path = os.path.join(data_dir, "mapping.json")
+
     return Settings(
         mysql_host=mysql_host,
         mysql_port=mysql_port,
@@ -52,4 +59,7 @@ def load_settings() -> Settings:
         mysql_password=mysql_password,
         mysql_database=mysql_database,
         database_url=database_url,
+        data_dir=data_dir,
+        faiss_index_path=faiss_index_path,
+        faiss_mapping_path=faiss_mapping_path,
     )

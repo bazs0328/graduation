@@ -47,6 +47,18 @@ Fetch document metadata:
 curl http://localhost:8000/docs/{id}
 ```
 
+### Build FAISS index
+
+Rebuild index from all chunks:
+
+```
+curl -X POST http://localhost:8000/index/rebuild
+```
+
+Notes:
+- Index files are persisted under `backend/data` (mounted to `/app/data` in the container).
+- On startup, the backend will load the index if present, otherwise it logs that rebuild is required.
+
 ### Health check
 
 ```

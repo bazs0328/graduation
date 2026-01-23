@@ -7,3 +7,5 @@ cryptography
 pypdf
 python-docx
 python-multipart
+faiss-cpu
+numpy

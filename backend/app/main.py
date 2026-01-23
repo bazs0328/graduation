@@ -4,10 +4,22 @@ from sqlalchemy.orm import Session
 from app.db.models import Chunk, Document
 from app.db.session import get_db
 from app.services.document_parser import build_chunks, extract_text
+from app.services.embeddings import HashEmbedder
+from app.services.index_manager import IndexManager
 from .settings import load_settings
 
 app = FastAPI()
 settings = load_settings()
+index_manager = IndexManager(
+    embedder=HashEmbedder(),
+    index_path=settings.faiss_index_path,
+    mapping_path=settings.faiss_mapping_path,
+)
+
+
+@app.on_event("startup")
+def load_index_on_startup():
+    index_manager.load_if_exists()
 
 
 @app.get("/health")
@@ -73,3 +85,8 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "created_at": document.created_at.isoformat() if document.created_at else None,
         "chunk_count": chunk_count,
     }
+
+
+@app.post("/index/rebuild")
+def rebuild_index(db: Session = Depends(get_db)):
+    return index_manager.rebuild(db)
