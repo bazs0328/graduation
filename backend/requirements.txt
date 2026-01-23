@@ -4,3 +4,6 @@ SQLAlchemy
 alembic
 pymysql
 cryptography
+pypdf
+python-docx
+python-multipart
