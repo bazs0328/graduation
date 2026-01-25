@@ -139,6 +139,32 @@ PowerShell alternative (Windows):
 powershell -ExecutionPolicy Bypass -File backend/scripts/dev_smoke.ps1
 ```
 
+## Frontend MVP (Phase 3)
+
+### Setup (React + Vite)
+
+From repo root:
+
+```
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Notes:
+- Default API base URL is `http://localhost:8000` via `VITE_API_BASE_URL`.
+- If the frontend runs on a different origin, set `CORS_ORIGINS` for the backend:
+  - Example: `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
+
+### Use the MVP
+
+1) Upload a document
+2) Rebuild the index
+3) Ask a question
+4) Generate + submit a quiz
+5) Load profile
+
 ### Phase 2 验收（端到端）
 
 ```
