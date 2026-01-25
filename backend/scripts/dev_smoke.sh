@@ -88,4 +88,10 @@ print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 
 step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
+
+step("Quiz generate (easy)")
+if doc_id:
+    print(http_post_json("/quiz/generate", {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]}))
+else:
+    print("document_id missing; skip quiz generate")
 PY

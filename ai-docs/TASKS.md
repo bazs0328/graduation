@@ -156,7 +156,7 @@
 
 ---
 
-### [ ] P2-003 接口：/quiz/generate（先 Easy-only 跑通）
+### [x] P2-003 接口：/quiz/generate（先 Easy-only 跑通）
 **目标**
 打通测验生成链路：检索资料片段 → 生成题目（只生成 Easy）→ 落库 → 返回结构化 JSON。
 
@@ -187,6 +187,13 @@
 - quizzes 与 quiz_questions 落库可查
 - scripts/dev_smoke.sh 增加生成测验步骤（或新增 smoke 脚本）
 
+
+**????**
+- docker compose exec backend alembic upgrade head
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+
+**??????**
+- dev_smoke.sh ?? quiz_id ? questions?Easy-only?>=5 ???2026-01-25?
 ---
 
 ### [ ] P2-004 接口：/quiz/submit（评分 + 提交记录落库）

@@ -81,6 +81,12 @@ curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d
 curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+### Quiz generate (Phase 2 Easy-only)
+
+```
+curl -X POST http://localhost:8000/quiz/generate -H "Content-Type: application/json" -d '{"document_id":1,"count":5,"types":["single","judge","short"]}'
+```
+
 ### Profile (Phase 2 MVP)
 
 Default session:
