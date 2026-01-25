@@ -61,6 +61,21 @@
 阻塞点（如有）：
 - ...
 
+里程碑：Milestone A
+验收日期：2026-01-25
+验收命令：
+1) docker compose up -d --build backend
+2) docker compose exec backend alembic upgrade head
+3) docker compose exec backend sh /app/scripts/dev_smoke.sh
+4) docker compose exec backend pytest
+关键输出摘要：
+- dev_smoke.sh 覆盖 health/upload/index/chat/quiz/submit/profile，输出 quiz_id/score/accuracy/difficulty_plan/profile 字段（2026-01-25）
+- alembic upgrade head 通过（2026-01-25）
+- pytest 4 passed（2026-01-25）
+结论：通过
+阻塞点（如有）：
+- 无
+
 
 ---
 
@@ -331,10 +346,65 @@
 
 ---
 
-## 五、后续（可选增强任务，完成当前队列后再添加）
-- ability_level → theta（Elo/IRT-lite）能力估计
-- 更细粒度 concept 体系（章节/小节映射）
-- 题目生成更严格的 schema 校验与回退策略
-
 ## Backlog / 待规划（允许自动追加）
 > 这里的任务默认不自动执行，除非用户确认或被提升到“当前任务队列”。
+
+### [ ] FE-001 前端骨架与基础链路打通
+**目标**
+提供最小可用前端，覆盖上传→建索引→问答→测验生成/提交→画像查看的闭环入口。
+
+**交付物**
+- 新增 frontend 目录（在确认技术栈后创建）
+- 基础页面：上传/索引/Chat/Quiz/Profile
+- API 请求封装与 BASE_URL 配置说明
+
+**验收**
+- 启动前端后可走通上述流程（不依赖手工 curl）
+- README 增加前端启动与使用说明
+
+**依赖**
+- 先确认前端技术栈与构建方式
+
+**风险与回滚**
+- 风险：引入新依赖/构建工具
+- 回滚：移除 frontend 目录并还原 README 变更
+
+### [ ] FE-002 前端测验答题与结果展示
+**目标**
+在前端完成题目渲染、答题、提交与结果展示。
+
+**交付物**
+- 题目渲染组件（single/judge/short）
+- 提交结果页：score/accuracy/feedback/per_question_result
+- 显示 difficulty_plan 与推荐信息
+
+**验收**
+- 前端完成一次测验并展示结果/推荐
+- 与 /quiz/submit 返回一致
+
+**依赖**
+- FE-001 完成
+
+**风险与回滚**
+- 风险：题型字段变更导致渲染失败
+- 回滚：回退到上一版 UI 组件
+
+### [ ] LLM-001 真实 LLM/Embedding 可配置切换
+**目标**
+提供可切换的真实 LLM/Embedding 接入，同时保留 Mock/Hash 兜底。
+
+**交付物**
+- 服务层 provider 封装与配置开关
+- 环境变量与 README 配置说明
+- 基本回归验证脚本（smoke/pytest 任选）
+
+**验收**
+- 配置真实 provider 后生成/问答可用
+- 切回 Mock/Hash 后仍可运行
+
+**依赖**
+- 明确 provider 与 API Key 获取方式
+
+**风险与回滚**
+- 风险：新增依赖/成本/稳定性
+- 回滚：关闭配置开关并移除新增依赖
