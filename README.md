@@ -33,6 +33,16 @@ docker compose exec backend alembic downgrade -1
 Notes:
 - `DATABASE_URL` is supported (optional). If not set, it falls back to `MYSQL_*` variables.
 
+### Phase 2 schema verification (quiz/profile)
+
+After migrating, insert and query a quiz + question + profile:
+
+```
+docker compose exec backend python /app/scripts/verify_quiz_schema.py
+```
+
+Expected output includes `quiz_id`, `question_id`, and `profile_id`.
+
 ### Upload a document
 
 Markdown example:
