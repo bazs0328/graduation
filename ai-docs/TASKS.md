@@ -196,7 +196,7 @@
 - dev_smoke.sh ?? quiz_id ? questions?Easy-only?>=5 ???2026-01-25?
 ---
 
-### [~] P2-004 接口：/quiz/submit（评分 + 提交记录落库）
+### [x] P2-004 接口：/quiz/submit（评分 + 提交记录落库）
 **目标**
 提交答案 → 对客观题判分 → 简答题给参考答案/要点（不强制自动评分）→ 落库 submission/attempt。
 
