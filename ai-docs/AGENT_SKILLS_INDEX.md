@@ -16,12 +16,6 @@
 
 ## 仓库技能（repo-scoped：.codex/skills/）
 
-### task-runner
-- 用途：从 TASKS.md 取第一条未完成任务 → 计划 → 实施 → 验收对照
-- 调用：`$task-runner`
-- 何时用：推进单条任务或需要变更清单+验证命令时
-- 验收命令：`bash scripts/dev_smoke.sh`（或 `pytest -q`）
-
 ### milestone-gate
 - 用途：里程碑门禁检查（smoke/pytest/迁移/重启恢复/索引可用）并给出可推进结论
 - 调用：`$milestone-gate`
@@ -65,7 +59,7 @@
 - 验收命令：`pytest -q`
 
 ### task-cycle
-- 用途：自动任务循环（run_next_task 两段式：默认仅计划；确认执行后实施；支持 analyze_and_append 自动追加 Backlog 任务；合并前不标记任务完成）
+- 用途：自动任务循环（run_next_task 两段式：默认仅计划；确认执行后实施；实施阶段按任务类型自动调用子技能并在交付摘要记录技能与工件；支持 analyze_and_append 自动追加 Backlog 任务；合并前不标记任务完成）
 - 调用：`$task-cycle`（默认 run_next_task plan）；确认后执行 run_next_task（或 stage=execute）；`$task-cycle` + analyze_and_append；完成合并并确认后才标记 [x]
 - 何时用：需要全自动推进单条任务并等待验收时
 - 验收命令：`bash scripts/dev_smoke.sh`（或 `pytest -q` / `alembic upgrade head`）
