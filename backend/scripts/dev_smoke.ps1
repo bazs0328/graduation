@@ -67,8 +67,11 @@ function Build-Answers {
 }
 
 function Generate-Quiz {
-  param([string]$SessionId)
-  Write-Host "==> Quiz generate (easy) ($SessionId)"
+  param(
+    [string]$SessionId,
+    [string]$Label = "Quiz generate"
+  )
+  Write-Host "==> $Label ($SessionId)"
   if (-not $docId) {
     Write-Host "document_id missing; skip quiz generate"
     return $null
@@ -86,7 +89,7 @@ function Submit-And-Profile {
     [string]$SessionId,
     [string]$Mode
   )
-  $quiz = Generate-Quiz -SessionId $SessionId
+  $quiz = Generate-Quiz -SessionId $SessionId -Label "Quiz generate (initial)"
   if (-not $quiz) {
     Write-Host "quiz_id missing; skip quiz submit"
     return
@@ -109,6 +112,15 @@ function Submit-And-Profile {
   Write-Host "==> Profile me ($SessionId)"
   $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me" -Headers $headers
   $profile | ConvertTo-Json -Compress
+  if ($Mode -eq "bad") {
+    $nextQuiz = Generate-Quiz -SessionId $SessionId -Label "Quiz generate (after overhard)"
+    if ($nextQuiz -and $nextQuiz.difficulty_plan) {
+      Write-Host ("next_difficulty_plan=" + ($nextQuiz.difficulty_plan | ConvertTo-Json -Compress))
+      if (($nextQuiz.difficulty_plan.Hard -ne 0) -or ($nextQuiz.difficulty_plan.Easy -lt 4)) {
+        throw "overhard fallback not applied"
+      }
+    }
+  }
 }
 
 Submit-And-Profile -SessionId "session-good" -Mode "good"

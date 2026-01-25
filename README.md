@@ -99,6 +99,7 @@ curl -X POST http://localhost:8000/quiz/submit -H "Content-Type: application/jso
 Notes:
 - `user_answer` is required for every question; short questions are not auto-graded and return a reference answer for self-review.
 - `X-Session-Id` must match the quiz session; mismatch returns 403 with `{code,message,details}`.
+- 若 accuracy < 30% 或前 5 道客观题错 >= 4，会追加鼓励反馈并在 last_quiz_summary 写入 `next_quiz_recommendation=easy_first`，下次生成更保守。
 
 ### Profile (Phase 2 MVP)
 

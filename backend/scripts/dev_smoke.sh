@@ -96,8 +96,8 @@ print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
 
-def generate_quiz(session_id: str) -> tuple[int | None, list, dict]:
-    step(f"Quiz generate (easy) ({session_id})")
+def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | None, list, dict]:
+    step(f"{label} ({session_id})")
     if not doc_id:
         print("document_id missing; skip quiz generate")
         return None, [], {}
@@ -143,7 +143,7 @@ def build_answers(question_items, make_wrong: bool) -> list[dict]:
 
 
 def submit_and_profile(session_id: str, mode: str) -> None:
-    quiz_id, questions, plan = generate_quiz(session_id)
+    quiz_id, questions, plan = generate_quiz(session_id, "Quiz generate (initial)")
     print(f"difficulty_plan={plan}")
     step(f"Quiz submit ({session_id})")
     if not quiz_id or not questions:
@@ -159,6 +159,11 @@ def submit_and_profile(session_id: str, mode: str) -> None:
     print(http_post_json("/quiz/submit", submit_payload, headers=headers))
     step(f"Profile me ({session_id})")
     print(http_get("/profile/me", headers=headers))
+    if mode == "bad":
+        _, _, next_plan = generate_quiz(session_id, "Quiz generate (after overhard)")
+        print(f"next_difficulty_plan={next_plan}")
+        if next_plan.get("Hard", 0) != 0 or next_plan.get("Easy", 0) < 4:
+            raise SystemExit("overhard fallback not applied")
 
 
 submit_and_profile("session-good", "good")
