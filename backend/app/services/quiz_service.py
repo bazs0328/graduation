@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.db import models
 from app.services.index_manager import IndexManager
-from app.services.profile_service import build_difficulty_plan, get_or_create_profile
+from app.services.profile_service import (
+    build_difficulty_plan,
+    get_last_quiz_summary,
+    get_or_create_profile,
+)
 from app.services.llm.mock import MockLLM
 
 DEFAULT_SESSION_ID = "default"
@@ -166,10 +170,15 @@ def generate_quiz(
         _ensure_documents_exist(db, resolved_doc_ids)
 
     profile = get_or_create_profile(db, normalized_session)
+    last_summary = get_last_quiz_summary(db, normalized_session)
+    recommendation = None
+    if isinstance(last_summary, dict):
+        recommendation = last_summary.get("next_quiz_recommendation")
     difficulty_plan = build_difficulty_plan(
         ability_level=profile.ability_level,
         frustration_score=profile.frustration_score or 0,
         count=count,
+        recommendation=recommendation,
     )
 
     chunks = _retrieve_chunks(db, index_manager, resolved_doc_ids, focus_concepts, count)
@@ -333,6 +342,9 @@ def submit_quiz(
     concept_stats_cache: Dict[str, models.ConceptStat] = {}
     session_correct_count = 0
     session_wrong_count = 0
+    objective_seen = 0
+    wrong_first_five = 0
+    wrong_concepts: Dict[str, int] = {}
 
     for question in questions:
         user_answer = answers_by_id.get(question.id)
@@ -368,7 +380,12 @@ def submit_quiz(
             else:
                 stat.wrong_count = (stat.wrong_count or 0) + 1
                 session_wrong_count += 1
+                wrong_concepts[concept] = wrong_concepts.get(concept, 0) + 1
             stat.last_seen = datetime.utcnow()
+            if objective_seen < 5:
+                if not correct:
+                    wrong_first_five += 1
+                objective_seen += 1
 
         per_question_result.append(
             {
@@ -389,6 +406,23 @@ def submit_quiz(
         feedback_parts.append("本次没有可评分的客观题。")
     if has_short:
         feedback_parts.append("简答题请参考参考答案自评。")
+    overhard = False
+    if objective_total > 0:
+        if accuracy < 0.3:
+            overhard = True
+        elif objective_seen >= 5 and wrong_first_five >= 4:
+            overhard = True
+
+    if overhard:
+        focus_concept = None
+        if wrong_concepts:
+            focus_concept = sorted(wrong_concepts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        if focus_concept:
+            feedback_parts.append(f"本次题目偏难，别灰心，建议先复习：{focus_concept}。")
+        else:
+            feedback_parts.append("本次题目偏难，别灰心，建议先复习基础概念。")
+        feedback_parts.append("下次会优先出简单题，逐步加难。")
+
     feedback_text = " ".join(feedback_parts)
 
     summary_json = {
@@ -400,6 +434,8 @@ def submit_quiz(
         "feedback_text": feedback_text,
         "per_question_result": per_question_result,
     }
+    if overhard:
+        summary_json["next_quiz_recommendation"] = "easy_first"
 
     attempt = models.QuizAttempt(
         quiz_id=quiz.id,
