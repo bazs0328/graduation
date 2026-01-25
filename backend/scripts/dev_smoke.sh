@@ -96,20 +96,21 @@ print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
 
-step("Quiz generate (easy)")
-quiz_payload = None
-if doc_id:
+def generate_quiz(session_id: str) -> tuple[int | None, list]:
+    step(f"Quiz generate (easy) ({session_id})")
+    if not doc_id:
+        print("document_id missing; skip quiz generate")
+        return None, []
+    headers = {"X-Session-Id": session_id}
     quiz_payload = http_post_json(
         "/quiz/generate",
         {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]},
+        headers=headers,
     )
     print(quiz_payload)
-else:
-    print("document_id missing; skip quiz generate")
+    quiz = json.loads(quiz_payload)
+    return quiz.get("quiz_id"), quiz.get("questions") or []
 
-quiz = json.loads(quiz_payload) if quiz_payload else None
-quiz_id = quiz.get("quiz_id") if isinstance(quiz, dict) else None
-questions = quiz.get("questions") if isinstance(quiz, dict) else []
 
 def build_answers(question_items, make_wrong: bool) -> list[dict]:
     results = []
@@ -141,22 +142,24 @@ def build_answers(question_items, make_wrong: bool) -> list[dict]:
     return results
 
 
-def submit_and_profile(session_id: str) -> None:
+def submit_and_profile(session_id: str, mode: str) -> None:
+    quiz_id, questions = generate_quiz(session_id)
     step(f"Quiz submit ({session_id})")
     if not quiz_id or not questions:
         print("quiz_id missing; skip quiz submit")
         return
     headers = {"X-Session-Id": session_id}
-    answers_mixed = build_answers(questions, make_wrong=False)
-    answers_wrong = build_answers(questions, make_wrong=True)
-    submit_payload = {"quiz_id": quiz_id, "answers": answers_mixed}
+    if mode == "good":
+        answers = build_answers(questions, make_wrong=False)
+    else:
+        answers = build_answers(questions, make_wrong=True)
+    submit_payload = {"quiz_id": quiz_id, "answers": answers}
     print(http_post_json("/quiz/submit", submit_payload, headers=headers))
-    submit_payload_wrong = {"quiz_id": quiz_id, "answers": answers_wrong}
-    print(http_post_json("/quiz/submit", submit_payload_wrong, headers=headers))
+    print(http_post_json("/quiz/submit", submit_payload, headers=headers))
     step(f"Profile me ({session_id})")
     print(http_get("/profile/me", headers=headers))
 
 
-submit_and_profile("session-good")
-submit_and_profile("session-bad")
+submit_and_profile("session-good", "good")
+submit_and_profile("session-bad", "bad")
 PY

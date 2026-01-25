@@ -30,18 +30,6 @@ Write-Host "==> Chat question"
 $chat = Invoke-RestMethod -Uri "$BaseUrl/chat" -Method Post -ContentType "application/json" -Body '{"query":"fox","top_k":5}'
 $chat | ConvertTo-Json -Compress
 
-Write-Host "==> Quiz generate (easy)"
-if ($docId) {
-  $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -ContentType "application/json" -Body ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
-  $quiz | ConvertTo-Json -Compress
-} else {
-  Write-Host "document_id missing; skip quiz generate"
-  $quiz = $null
-}
-
-$quizId = if ($quiz) { $quiz.quiz_id } else { $null }
-$questions = if ($quiz) { $quiz.questions } else { @() }
-
 function Build-Answers {
   param(
     [object[]]$QuestionItems,
@@ -78,26 +66,49 @@ function Build-Answers {
   return $results
 }
 
-function Submit-And-Profile {
+function Generate-Quiz {
   param([string]$SessionId)
-  Write-Host "==> Quiz submit ($SessionId)"
+  Write-Host "==> Quiz generate (easy) ($SessionId)"
+  if (-not $docId) {
+    Write-Host "document_id missing; skip quiz generate"
+    return $null
+  }
+  $headers = @{ "X-Session-Id" = $SessionId }
+  $payload = ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
+  $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
+  $quiz | ConvertTo-Json -Compress
+  return $quiz
+}
+
+function Submit-And-Profile {
+  param(
+    [string]$SessionId,
+    [string]$Mode
+  )
+  $quiz = Generate-Quiz -SessionId $SessionId
+  if (-not $quiz) {
+    Write-Host "quiz_id missing; skip quiz submit"
+    return
+  }
+  $quizId = $quiz.quiz_id
+  $questions = $quiz.questions
   if (-not $quizId -or $questions.Count -eq 0) {
     Write-Host "quiz_id missing; skip quiz submit"
     return
   }
+  Write-Host "==> Quiz submit ($SessionId)"
   $headers = @{ "X-Session-Id" = $SessionId }
-  $answersMixed = Build-Answers -QuestionItems $questions -MakeWrong:$false
-  $answersWrong = Build-Answers -QuestionItems $questions -MakeWrong:$true
-  $payload = @{ quiz_id = $quizId; answers = $answersMixed } | ConvertTo-Json -Depth 6 -Compress
+  $makeWrong = $Mode -eq "bad"
+  $answers = Build-Answers -QuestionItems $questions -MakeWrong:$makeWrong
+  $payload = @{ quiz_id = $quizId; answers = $answers } | ConvertTo-Json -Depth 6 -Compress
   $submit = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
   $submit | ConvertTo-Json -Compress
-  $payloadWrong = @{ quiz_id = $quizId; answers = $answersWrong } | ConvertTo-Json -Depth 6 -Compress
-  $submitWrong = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payloadWrong
-  $submitWrong | ConvertTo-Json -Compress
+  $submit2 = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
+  $submit2 | ConvertTo-Json -Compress
   Write-Host "==> Profile me ($SessionId)"
   $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me" -Headers $headers
   $profile | ConvertTo-Json -Compress
 }
 
-Submit-And-Profile -SessionId "session-good"
-Submit-And-Profile -SessionId "session-bad"
+Submit-And-Profile -SessionId "session-good" -Mode "good"
+Submit-And-Profile -SessionId "session-bad" -Mode "bad"
