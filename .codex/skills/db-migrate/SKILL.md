@@ -1,4 +1,4 @@
-﻿---
+---
 name: db-migrate
 description: 最小化数据库 schema 调整与 Alembic 迁移流程（upgrade/downgrade/插入查询验证）。用于新增字段、轻量表结构变更或验证迁移可逆性时。
 ---

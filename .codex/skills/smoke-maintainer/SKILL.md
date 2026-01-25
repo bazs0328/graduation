@@ -1,4 +1,4 @@
-﻿---
+---
 name: smoke-maintainer
 description: 维护 scripts/dev_smoke.sh，新增关键接口必须加入 smoke，确保失败有明确退出码与日志；用于维护或扩展 smoke 流程时。
 ---

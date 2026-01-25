@@ -1,4 +1,4 @@
-﻿---
+---
 name: milestone-gate
 description: 里程碑门禁检查（dev_smoke/pytest/alembic upgrade/重启恢复与索引可用性）；用于判断“可推进/不可推进”并给出最小修复建议。
 ---

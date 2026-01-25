@@ -1,4 +1,4 @@
-﻿---
+---
 name: task-cycle
 description: 全自动任务循环：从 ai-docs/TASKS.md 获取第一条未完成任务→创建分支→实现任务→门禁验证→更新 TASKS 状态→输出交付摘要并等待验收；验收通过后执行 merge_task 合并清理。
 ---

@@ -1,4 +1,4 @@
-﻿---
+---
 name: api-contract
 description: API 契约定义与更新（输入/输出 JSON、统一错误结构、状态码与 curl 示例）；用于新增或变更接口并要求可复现验证时。
 ---

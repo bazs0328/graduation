@@ -1,4 +1,4 @@
-﻿---
+---
 name: task-runner
 description: 从 ai-docs/TASKS.md 提取下一条未完成任务，先产出计划（优先使用 $create-plan），再实施并给出变更清单与验收对照；用于推进单条任务、执行任务清单或要求输出验证方式时。
 ---

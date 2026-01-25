@@ -1,4 +1,4 @@
-﻿---
+---
 name: learner-profile
 description: 学习者画像落库与更新（ability/theta、frustration、weak_concepts）并输出 difficulty_plan；用于画像表结构/更新策略/查询接口调整时。
 ---
