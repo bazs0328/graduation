@@ -222,7 +222,7 @@
 
 ---
 
-### [ ] P2-005 concept_stats 更新（错题优先基础）
+### [~] P2-005 concept_stats 更新（错题优先基础）
 **目标**
 提交测验时按 related_concept 更新 concept_stats，并能输出弱项概念。
 

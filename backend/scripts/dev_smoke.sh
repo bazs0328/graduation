@@ -107,6 +107,7 @@ questions = quiz.get("questions") if isinstance(quiz, dict) else []
 step("Quiz submit")
 if quiz_id and questions:
     answers = []
+    answers_wrong = []
     wrong_used = False
     for item in questions:
         qid = item.get("question_id")
@@ -122,6 +123,7 @@ if quiz_id and questions:
                 wrong_used = True
             else:
                 user_answer = {"choice": choice or "A"}
+            wrong_answer = {"choice": ("B" if choice != "B" else "C")}
         elif qtype == "judge":
             expected_value = expected.get("value") if isinstance(expected, dict) else True
             if not wrong_used:
@@ -129,12 +131,21 @@ if quiz_id and questions:
                 wrong_used = True
             else:
                 user_answer = {"value": bool(expected_value)}
+            wrong_answer = {"value": not bool(expected_value)}
         else:
             user_answer = {"text": "self-review"}
+            wrong_answer = {"text": "self-review"}
         answers.append({"question_id": qid, "user_answer": user_answer})
+        answers_wrong.append({"question_id": qid, "user_answer": wrong_answer})
 
     submit_payload = {"quiz_id": quiz_id, "answers": answers}
     print(http_post_json("/quiz/submit", submit_payload))
+
+    submit_payload_wrong = {"quiz_id": quiz_id, "answers": answers_wrong}
+    print(http_post_json("/quiz/submit", submit_payload_wrong))
+
+    step("Profile me")
+    print(http_get("/profile/me"))
 else:
     print("quiz_id missing; skip quiz submit")
 PY

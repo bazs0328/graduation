@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from itertools import cycle
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -232,6 +233,33 @@ def _normalize_answers(raw_answers: Iterable[Any]) -> List[Dict[str, Any]]:
     return normalized
 
 
+def _normalize_concept(value: Optional[str]) -> str:
+    cleaned = (value or "").strip()
+    return cleaned or "general"
+
+
+def _get_or_create_concept_stat(db: Session, session_id: str, concept: str) -> models.ConceptStat:
+    stat = (
+        db.query(models.ConceptStat)
+        .filter(
+            models.ConceptStat.session_id == session_id,
+            models.ConceptStat.concept == concept,
+        )
+        .first()
+    )
+    if stat:
+        return stat
+    stat = models.ConceptStat(
+        session_id=session_id,
+        concept=concept,
+        correct_count=0,
+        wrong_count=0,
+        last_seen=datetime.utcnow(),
+    )
+    db.add(stat)
+    return stat
+
+
 def submit_quiz(
     db: Session,
     quiz_id: int,
@@ -287,6 +315,7 @@ def submit_quiz(
     correct_count = 0
     objective_total = 0
     has_short = False
+    concept_stats_cache: Dict[str, models.ConceptStat] = {}
 
     for question in questions:
         user_answer = answers_by_id.get(question.id)
@@ -309,6 +338,18 @@ def submit_quiz(
                 correct_count += 1
         else:
             has_short = True
+
+        if correct is not None:
+            concept = _normalize_concept(question.related_concept)
+            stat = concept_stats_cache.get(concept)
+            if not stat:
+                stat = _get_or_create_concept_stat(db, normalized_session, concept)
+                concept_stats_cache[concept] = stat
+            if correct:
+                stat.correct_count = (stat.correct_count or 0) + 1
+            else:
+                stat.wrong_count = (stat.wrong_count or 0) + 1
+            stat.last_seen = datetime.utcnow()
 
         per_question_result.append(
             {
