@@ -81,6 +81,20 @@ curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d
 curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+### Profile (Phase 2 MVP)
+
+Default session:
+
+```
+curl http://localhost:8000/profile/me
+```
+
+Custom session:
+
+```
+curl -H "X-Session-Id: demo-session" http://localhost:8000/profile/me
+```
+
 ### Dev scripts
 
 Run smoke test (requires docker compose already running):
