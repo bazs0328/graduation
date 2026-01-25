@@ -30,65 +30,85 @@ Write-Host "==> Chat question"
 $chat = Invoke-RestMethod -Uri "$BaseUrl/chat" -Method Post -ContentType "application/json" -Body '{"query":"fox","top_k":5}'
 $chat | ConvertTo-Json -Compress
 
-Write-Host "==> Quiz generate (easy)"
-if ($docId) {
-  $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -ContentType "application/json" -Body ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
-  $quiz | ConvertTo-Json -Compress
-} else {
-  Write-Host "document_id missing; skip quiz generate"
-  $quiz = $null
-}
-
-$quizId = if ($quiz) { $quiz.quiz_id } else { $null }
-$questions = if ($quiz) { $quiz.questions } else { @() }
-
-Write-Host "==> Quiz submit"
-if ($quizId -and $questions.Count -gt 0) {
-  $answers = @()
-  $answersWrong = @()
-  $wrongUsed = $false
-  foreach ($q in $questions) {
+function Build-Answers {
+  param(
+    [object[]]$QuestionItems,
+    [bool]$MakeWrong
+  )
+  $results = @()
+  $usedWrong = $false
+  foreach ($q in $QuestionItems) {
     $qid = $q.question_id
     $qtype = $q.type
     $expected = $q.answer
     if ($qtype -eq "single") {
       $choice = if ($expected -and $expected.choice) { $expected.choice } else { "A" }
-      if (-not $wrongUsed) {
-        $wrongChoice = if ($choice -ne "B") { "B" } else { "C" }
+      $wrongChoice = if ($choice -ne "B") { "B" } else { "C" }
+      if ($MakeWrong -or -not $usedWrong) {
         $userAnswer = @{ choice = $wrongChoice }
-        $wrongUsed = $true
+        $usedWrong = $true
       } else {
         $userAnswer = @{ choice = $choice }
       }
-      $wrongAnswer = @{ choice = $(if ($choice -ne "B") { "B" } else { "C" }) }
     } elseif ($qtype -eq "judge") {
       $expectedValue = if ($expected -and $null -ne $expected.value) { [bool]$expected.value } else { $true }
-      if (-not $wrongUsed) {
+      if ($MakeWrong -or -not $usedWrong) {
         $userAnswer = @{ value = (-not $expectedValue) }
-        $wrongUsed = $true
+        $usedWrong = $true
       } else {
         $userAnswer = @{ value = $expectedValue }
       }
-      $wrongAnswer = @{ value = (-not $expectedValue) }
     } else {
       $userAnswer = @{ text = "self-review" }
-      $wrongAnswer = @{ text = "self-review" }
     }
-    $answers += @{ question_id = $qid; user_answer = $userAnswer }
-    $answersWrong += @{ question_id = $qid; user_answer = $wrongAnswer }
+    $results += @{ question_id = $qid; user_answer = $userAnswer }
   }
-
-  $payload = @{ quiz_id = $quizId; answers = $answers } | ConvertTo-Json -Depth 6 -Compress
-  $submit = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -ContentType "application/json" -Body $payload
-  $submit | ConvertTo-Json -Compress
-
-  $payloadWrong = @{ quiz_id = $quizId; answers = $answersWrong } | ConvertTo-Json -Depth 6 -Compress
-  $submitWrong = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -ContentType "application/json" -Body $payloadWrong
-  $submitWrong | ConvertTo-Json -Compress
-
-  Write-Host "==> Profile me"
-  $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me"
-  $profile | ConvertTo-Json -Compress
-} else {
-  Write-Host "quiz_id missing; skip quiz submit"
+  return $results
 }
+
+function Generate-Quiz {
+  param([string]$SessionId)
+  Write-Host "==> Quiz generate (easy) ($SessionId)"
+  if (-not $docId) {
+    Write-Host "document_id missing; skip quiz generate"
+    return $null
+  }
+  $headers = @{ "X-Session-Id" = $SessionId }
+  $payload = ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
+  $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
+  $quiz | ConvertTo-Json -Compress
+  return $quiz
+}
+
+function Submit-And-Profile {
+  param(
+    [string]$SessionId,
+    [string]$Mode
+  )
+  $quiz = Generate-Quiz -SessionId $SessionId
+  if (-not $quiz) {
+    Write-Host "quiz_id missing; skip quiz submit"
+    return
+  }
+  $quizId = $quiz.quiz_id
+  $questions = $quiz.questions
+  if (-not $quizId -or $questions.Count -eq 0) {
+    Write-Host "quiz_id missing; skip quiz submit"
+    return
+  }
+  Write-Host "==> Quiz submit ($SessionId)"
+  $headers = @{ "X-Session-Id" = $SessionId }
+  $makeWrong = $Mode -eq "bad"
+  $answers = Build-Answers -QuestionItems $questions -MakeWrong:$makeWrong
+  $payload = @{ quiz_id = $quizId; answers = $answers } | ConvertTo-Json -Depth 6 -Compress
+  $submit = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
+  $submit | ConvertTo-Json -Compress
+  $submit2 = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
+  $submit2 | ConvertTo-Json -Compress
+  Write-Host "==> Profile me ($SessionId)"
+  $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me" -Headers $headers
+  $profile | ConvertTo-Json -Compress
+}
+
+Submit-And-Profile -SessionId "session-good" -Mode "good"
+Submit-And-Profile -SessionId "session-bad" -Mode "bad"

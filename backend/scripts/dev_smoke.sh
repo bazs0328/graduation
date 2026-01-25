@@ -32,21 +32,28 @@ def step(title: str) -> None:
     print(f"==> {title}")
 
 
-def http_get(path: str) -> str:
-    with urllib.request.urlopen(base_url + path) as resp:
-        return resp.read().decode()
-
-
-def http_post(path: str) -> str:
-    req = urllib.request.Request(base_url + path, method="POST")
+def http_get(path: str, headers: dict | None = None) -> str:
+    req = urllib.request.Request(base_url + path, method="GET")
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
     with urllib.request.urlopen(req) as resp:
         return resp.read().decode()
 
 
-def http_post_json(path: str, payload: dict) -> str:
+def http_post(path: str, headers: dict | None = None) -> str:
+    req = urllib.request.Request(base_url + path, method="POST")
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
+    with urllib.request.urlopen(req) as resp:
+        return resp.read().decode()
+
+
+def http_post_json(path: str, payload: dict, headers: dict | None = None) -> str:
     data = json.dumps(payload).encode()
     req = urllib.request.Request(base_url + path, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
     with urllib.request.urlopen(req) as resp:
         return resp.read().decode()
 
@@ -89,27 +96,26 @@ print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
 
-step("Quiz generate (easy)")
-quiz_payload = None
-if doc_id:
+def generate_quiz(session_id: str) -> tuple[int | None, list]:
+    step(f"Quiz generate (easy) ({session_id})")
+    if not doc_id:
+        print("document_id missing; skip quiz generate")
+        return None, []
+    headers = {"X-Session-Id": session_id}
     quiz_payload = http_post_json(
         "/quiz/generate",
         {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]},
+        headers=headers,
     )
     print(quiz_payload)
-else:
-    print("document_id missing; skip quiz generate")
+    quiz = json.loads(quiz_payload)
+    return quiz.get("quiz_id"), quiz.get("questions") or []
 
-quiz = json.loads(quiz_payload) if quiz_payload else None
-quiz_id = quiz.get("quiz_id") if isinstance(quiz, dict) else None
-questions = quiz.get("questions") if isinstance(quiz, dict) else []
 
-step("Quiz submit")
-if quiz_id and questions:
-    answers = []
-    answers_wrong = []
-    wrong_used = False
-    for item in questions:
+def build_answers(question_items, make_wrong: bool) -> list[dict]:
+    results = []
+    used_wrong = False
+    for item in question_items:
         qid = item.get("question_id")
         qtype = item.get("type")
         expected = item.get("answer") if isinstance(item, dict) else None
@@ -117,35 +123,43 @@ if quiz_id and questions:
             continue
         if qtype == "single":
             choice = expected.get("choice") if isinstance(expected, dict) else "A"
-            if not wrong_used:
-                wrong_choice = "B" if choice != "B" else "C"
+            wrong_choice = "B" if choice != "B" else "C"
+            if make_wrong or not used_wrong:
                 user_answer = {"choice": wrong_choice}
-                wrong_used = True
+                used_wrong = True
             else:
                 user_answer = {"choice": choice or "A"}
-            wrong_answer = {"choice": ("B" if choice != "B" else "C")}
         elif qtype == "judge":
             expected_value = expected.get("value") if isinstance(expected, dict) else True
-            if not wrong_used:
+            if make_wrong or not used_wrong:
                 user_answer = {"value": not bool(expected_value)}
-                wrong_used = True
+                used_wrong = True
             else:
                 user_answer = {"value": bool(expected_value)}
-            wrong_answer = {"value": not bool(expected_value)}
         else:
             user_answer = {"text": "self-review"}
-            wrong_answer = {"text": "self-review"}
-        answers.append({"question_id": qid, "user_answer": user_answer})
-        answers_wrong.append({"question_id": qid, "user_answer": wrong_answer})
+        results.append({"question_id": qid, "user_answer": user_answer})
+    return results
 
+
+def submit_and_profile(session_id: str, mode: str) -> None:
+    quiz_id, questions = generate_quiz(session_id)
+    step(f"Quiz submit ({session_id})")
+    if not quiz_id or not questions:
+        print("quiz_id missing; skip quiz submit")
+        return
+    headers = {"X-Session-Id": session_id}
+    if mode == "good":
+        answers = build_answers(questions, make_wrong=False)
+    else:
+        answers = build_answers(questions, make_wrong=True)
     submit_payload = {"quiz_id": quiz_id, "answers": answers}
-    print(http_post_json("/quiz/submit", submit_payload))
+    print(http_post_json("/quiz/submit", submit_payload, headers=headers))
+    print(http_post_json("/quiz/submit", submit_payload, headers=headers))
+    step(f"Profile me ({session_id})")
+    print(http_get("/profile/me", headers=headers))
 
-    submit_payload_wrong = {"quiz_id": quiz_id, "answers": answers_wrong}
-    print(http_post_json("/quiz/submit", submit_payload_wrong))
 
-    step("Profile me")
-    print(http_get("/profile/me"))
-else:
-    print("quiz_id missing; skip quiz submit")
+submit_and_profile("session-good", "good")
+submit_and_profile("session-bad", "bad")
 PY

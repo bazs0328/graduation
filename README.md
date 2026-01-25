@@ -113,6 +113,7 @@ curl -H "X-Session-Id: demo-session" http://localhost:8000/profile/me
 
 Notes:
 - /quiz/submit 会更新 concept_stats，/profile/me 的 weak_concepts 按 wrong_count 排序展示弱项概览。
+- 画像更新基于近期提交的客观题准确率：<50% beginner，50–80% intermediate，>=80% advanced；连续错会提升 frustration_score。
 
 ### Dev scripts
 
