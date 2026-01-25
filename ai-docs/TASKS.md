@@ -274,7 +274,7 @@
 
 ---
 
-### [ ] P2-008 过难回调（防翻车体验）
+### [~] P2-008 过难回调（防翻车体验）
 **目标**
 当测验明显过难时自动“降档 + 鼓励反馈 + 下次推荐更保守”。
 
@@ -289,6 +289,15 @@
 **验收**
 - 故意全错提交 → 触发回调（脚本可复现）
 - 下次生成难度更保守（Hard=0，Easy 上升）
+
+**验证方式**
+- docker compose up -d --build backend
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
+
+**关键输出摘要**
+- dev_smoke.sh 中 session-bad 触发鼓励反馈并写入 next_quiz_recommendation=easy_first；下次生成 Hard=0（2026-01-25）
+- pytest 4 passed（2026-01-25）
 
 ---
 

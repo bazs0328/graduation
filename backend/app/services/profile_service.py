@@ -89,6 +89,7 @@ def build_difficulty_plan(
     ability_level: Optional[str],
     frustration_score: int,
     count: int,
+    recommendation: Optional[str] = None,
 ) -> Dict[str, int]:
     total = max(count, 1)
     ability = (ability_level or DEFAULT_ABILITY_LEVEL).lower()
@@ -111,6 +112,11 @@ def build_difficulty_plan(
             if overflow > 0 and plan["Easy"] > overflow:
                 plan["Easy"] -= overflow
         return plan
+
+    if recommendation == "easy_first":
+        easy = max(1, int(total * 0.8))
+        plan = {"Easy": easy, "Medium": total - easy, "Hard": 0}
+        return clamp_plan(plan)
 
     if ability == "advanced" and frustration < 3:
         plan = {
