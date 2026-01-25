@@ -315,6 +315,7 @@ def submit_quiz(
     correct_count = 0
     objective_total = 0
     has_short = False
+    concept_stats_cache: Dict[str, models.ConceptStat] = {}
 
     for question in questions:
         user_answer = answers_by_id.get(question.id)
@@ -340,7 +341,10 @@ def submit_quiz(
 
         if correct is not None:
             concept = _normalize_concept(question.related_concept)
-            stat = _get_or_create_concept_stat(db, normalized_session, concept)
+            stat = concept_stats_cache.get(concept)
+            if not stat:
+                stat = _get_or_create_concept_stat(db, normalized_session, concept)
+                concept_stats_cache[concept] = stat
             if correct:
                 stat.correct_count = (stat.correct_count or 0) + 1
             else:
