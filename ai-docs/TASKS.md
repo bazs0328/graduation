@@ -237,7 +237,7 @@
 
 ---
 
-### [~] P2-006 画像更新（MVP）：ability_level + frustration_score
+### [x] P2-006 画像更新（MVP）：ability_level + frustration_score
 **目标**
 实现最小可用画像更新，能驱动难度控制与“信心保护”。
 
