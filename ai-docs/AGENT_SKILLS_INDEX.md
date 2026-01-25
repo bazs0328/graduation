@@ -61,3 +61,10 @@
 - 调用：`$bug-triage`
 - 何时用：处理用户报 bug 或回归问题
 - 验收命令：`pytest -q`
+
+### task-cycle
+- 用途：自动任务循环（取下一条未完成任务→建分支→实现→门禁→更新 TASKS→输出交付摘要）
+- 调用：`$task-cycle`（默认 run_next_task），或在验收后用 merge_task 合并清理
+- 何时用：需要全自动推进单条任务并等待验收时
+- 验收命令：`bash scripts/dev_smoke.sh`（或 `pytest -q` / `alembic upgrade head`）
+
