@@ -316,6 +316,8 @@ def submit_quiz(
     objective_total = 0
     has_short = False
     concept_stats_cache: Dict[str, models.ConceptStat] = {}
+    session_correct_count = 0
+    session_wrong_count = 0
 
     for question in questions:
         user_answer = answers_by_id.get(question.id)
@@ -347,8 +349,10 @@ def submit_quiz(
                 concept_stats_cache[concept] = stat
             if correct:
                 stat.correct_count = (stat.correct_count or 0) + 1
+                session_correct_count += 1
             else:
                 stat.wrong_count = (stat.wrong_count or 0) + 1
+                session_wrong_count += 1
             stat.last_seen = datetime.utcnow()
 
         per_question_result.append(
@@ -389,6 +393,33 @@ def submit_quiz(
         summary_json=summary_json,
     )
     db.add(attempt)
+
+    profile = (
+        db.query(models.LearnerProfile)
+        .filter(models.LearnerProfile.session_id == normalized_session)
+        .first()
+    )
+    if not profile:
+        profile = models.LearnerProfile(
+            session_id=normalized_session,
+            ability_level="beginner",
+            frustration_score=0,
+        )
+        db.add(profile)
+
+    if objective_total > 0:
+        if accuracy < 0.5:
+            profile.ability_level = "beginner"
+        elif accuracy < 0.8:
+            profile.ability_level = "intermediate"
+        else:
+            profile.ability_level = "advanced"
+
+    if session_wrong_count >= 3 or (objective_total > 0 and accuracy < 0.3):
+        profile.frustration_score = min((profile.frustration_score or 0) + 1, 10)
+    elif session_correct_count > 0:
+        profile.frustration_score = max((profile.frustration_score or 0) - 1, 0)
+    profile.last_updated = datetime.utcnow()
     db.commit()
 
     return {
