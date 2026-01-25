@@ -109,7 +109,15 @@ def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | 
     )
     print(quiz_payload)
     quiz = json.loads(quiz_payload)
-    return quiz.get("quiz_id"), quiz.get("questions") or [], quiz.get("difficulty_plan") or {}
+    quiz_id = quiz.get("quiz_id")
+    questions = quiz.get("questions") or []
+    plan = quiz.get("difficulty_plan") or {}
+    print(f"quiz_id={quiz_id}")
+    print(f"question_count={len(questions)}")
+    print(f"difficulty_plan={plan}")
+    if len(questions) < 5:
+        raise SystemExit("quiz question count < 5")
+    return quiz_id, questions, plan
 
 
 def build_answers(question_items, make_wrong: bool) -> list[dict]:
@@ -144,7 +152,6 @@ def build_answers(question_items, make_wrong: bool) -> list[dict]:
 
 def submit_and_profile(session_id: str, mode: str) -> None:
     quiz_id, questions, plan = generate_quiz(session_id, "Quiz generate (initial)")
-    print(f"difficulty_plan={plan}")
     step(f"Quiz submit ({session_id})")
     if not quiz_id or not questions:
         print("quiz_id missing; skip quiz submit")
@@ -155,10 +162,33 @@ def submit_and_profile(session_id: str, mode: str) -> None:
     else:
         answers = build_answers(questions, make_wrong=True)
     submit_payload = {"quiz_id": quiz_id, "answers": answers}
-    print(http_post_json("/quiz/submit", submit_payload, headers=headers))
+    submit_raw = http_post_json("/quiz/submit", submit_payload, headers=headers)
+    print(submit_raw)
+    submit_data = json.loads(submit_raw)
+    print(f"score={submit_data.get('score')} accuracy={submit_data.get('accuracy')}")
+    if submit_data.get("score") is None or submit_data.get("accuracy") is None:
+        raise SystemExit("submit missing score/accuracy")
     print(http_post_json("/quiz/submit", submit_payload, headers=headers))
     step(f"Profile me ({session_id})")
-    print(http_get("/profile/me", headers=headers))
+    profile_raw = http_get("/profile/me", headers=headers)
+    print(profile_raw)
+    profile = json.loads(profile_raw)
+    print(
+        "profile_ability="
+        + str(profile.get("ability_level"))
+        + " frustration="
+        + str(profile.get("frustration_score"))
+    )
+    last_summary = profile.get("last_quiz_summary") if isinstance(profile, dict) else None
+    if isinstance(last_summary, dict):
+        print(f"profile_last_accuracy={last_summary.get('accuracy')}")
+        recommendation = last_summary.get("next_quiz_recommendation")
+        if recommendation:
+            print(f"profile_recommendation={recommendation}")
+        if mode == "bad" and recommendation != "easy_first":
+            raise SystemExit("profile missing easy_first recommendation")
+    elif mode == "bad":
+        raise SystemExit("profile missing last_quiz_summary")
     if mode == "bad":
         _, _, next_plan = generate_quiz(session_id, "Quiz generate (after overhard)")
         print(f"next_difficulty_plan={next_plan}")

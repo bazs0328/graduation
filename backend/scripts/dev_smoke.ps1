@@ -80,6 +80,13 @@ function Generate-Quiz {
   $payload = ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
   $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
   $quiz | ConvertTo-Json -Compress
+  Write-Host ("quiz_id=" + $quiz.quiz_id)
+  if ($quiz.questions) {
+    Write-Host ("question_count=" + $quiz.questions.Count)
+    if ($quiz.questions.Count -lt 5) {
+      throw "quiz question count < 5"
+    }
+  }
   Write-Host ("difficulty_plan=" + ($quiz.difficulty_plan | ConvertTo-Json -Compress))
   return $quiz
 }
@@ -107,11 +114,27 @@ function Submit-And-Profile {
   $payload = @{ quiz_id = $quizId; answers = $answers } | ConvertTo-Json -Depth 6 -Compress
   $submit = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
   $submit | ConvertTo-Json -Compress
+  Write-Host ("score=" + $submit.score + " accuracy=" + $submit.accuracy)
+  if ($null -eq $submit.score -or $null -eq $submit.accuracy) {
+    throw "submit missing score/accuracy"
+  }
   $submit2 = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
   $submit2 | ConvertTo-Json -Compress
   Write-Host "==> Profile me ($SessionId)"
   $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me" -Headers $headers
   $profile | ConvertTo-Json -Compress
+  Write-Host ("profile_ability=" + $profile.ability_level + " frustration=" + $profile.frustration_score)
+  if ($profile.last_quiz_summary) {
+    Write-Host ("profile_last_accuracy=" + $profile.last_quiz_summary.accuracy)
+    if ($profile.last_quiz_summary.next_quiz_recommendation) {
+      Write-Host ("profile_recommendation=" + $profile.last_quiz_summary.next_quiz_recommendation)
+    }
+    if ($Mode -eq "bad" -and $profile.last_quiz_summary.next_quiz_recommendation -ne "easy_first") {
+      throw "profile missing easy_first recommendation"
+    }
+  } elseif ($Mode -eq "bad") {
+    throw "profile missing last_quiz_summary"
+  }
   if ($Mode -eq "bad") {
     $nextQuiz = Generate-Quiz -SessionId $SessionId -Label "Quiz generate (after overhard)"
     if ($nextQuiz -and $nextQuiz.difficulty_plan) {
