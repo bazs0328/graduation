@@ -1,4 +1,7 @@
+import os
+
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -16,7 +19,21 @@ from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
 from .settings import load_settings
 
+def _load_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "")
+    if raw:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_load_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 settings = load_settings()
 index_manager = IndexManager(
     embedder=HashEmbedder(),
