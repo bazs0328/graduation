@@ -254,7 +254,7 @@
 
 ---
 
-### [ ] P2-007 难度控制：/quiz/generate 根据画像决定 difficulty_plan
+### [~] P2-007 难度控制：/quiz/generate 根据画像决定 difficulty_plan
 **目标**
 让测验生成真正“因人而异”：根据 learner_profile 输出难度配比并按 plan 生成（引入 Medium/Hard）。
 

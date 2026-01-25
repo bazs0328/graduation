@@ -96,11 +96,11 @@ print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
 
-def generate_quiz(session_id: str) -> tuple[int | None, list]:
+def generate_quiz(session_id: str) -> tuple[int | None, list, dict]:
     step(f"Quiz generate (easy) ({session_id})")
     if not doc_id:
         print("document_id missing; skip quiz generate")
-        return None, []
+        return None, [], {}
     headers = {"X-Session-Id": session_id}
     quiz_payload = http_post_json(
         "/quiz/generate",
@@ -109,7 +109,7 @@ def generate_quiz(session_id: str) -> tuple[int | None, list]:
     )
     print(quiz_payload)
     quiz = json.loads(quiz_payload)
-    return quiz.get("quiz_id"), quiz.get("questions") or []
+    return quiz.get("quiz_id"), quiz.get("questions") or [], quiz.get("difficulty_plan") or {}
 
 
 def build_answers(question_items, make_wrong: bool) -> list[dict]:
@@ -143,7 +143,8 @@ def build_answers(question_items, make_wrong: bool) -> list[dict]:
 
 
 def submit_and_profile(session_id: str, mode: str) -> None:
-    quiz_id, questions = generate_quiz(session_id)
+    quiz_id, questions, plan = generate_quiz(session_id)
+    print(f"difficulty_plan={plan}")
     step(f"Quiz submit ({session_id})")
     if not quiz_id or not questions:
         print("quiz_id missing; skip quiz submit")
