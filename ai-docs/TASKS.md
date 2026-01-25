@@ -106,7 +106,7 @@
 
 ---
 
-### [ ] P2-002 接口：/profile/me（MVP）
+### [x] P2-002 接口：/profile/me（MVP）
 **目标**
 提供当前用户画像查询（即使是默认值也必须落库可查）。
 
@@ -122,6 +122,15 @@
 - 新用户首次访问返回默认画像，并确保 learner_profile 表中有记录
 - curl 示例写入 README 或 scripts
 - /profile/me 返回结构稳定（字段不缺）
+
+**验证方式**
+- docker compose exec backend alembic upgrade head
+- curl http://localhost:8000/profile/me
+- docker compose exec backend python -c "from app.db.session import SessionLocal; from app.db import models; db=SessionLocal(); print(db.query(models.LearnerProfile).count()); db.close()"
+
+**关键输出摘要**
+- /profile/me 返回 {"ability_level":"beginner","frustration_score":0,"weak_concepts":[],"last_quiz_summary":null}
+- learner_profile 记录数 >= 1（2026-01-25）
 
 ---
 
