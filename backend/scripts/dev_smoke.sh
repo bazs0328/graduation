@@ -90,8 +90,51 @@ step("Chat question")
 print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
 
 step("Quiz generate (easy)")
+quiz_payload = None
 if doc_id:
-    print(http_post_json("/quiz/generate", {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]}))
+    quiz_payload = http_post_json(
+        "/quiz/generate",
+        {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]},
+    )
+    print(quiz_payload)
 else:
     print("document_id missing; skip quiz generate")
+
+quiz = json.loads(quiz_payload) if quiz_payload else None
+quiz_id = quiz.get("quiz_id") if isinstance(quiz, dict) else None
+questions = quiz.get("questions") if isinstance(quiz, dict) else []
+
+step("Quiz submit")
+if quiz_id and questions:
+    answers = []
+    wrong_used = False
+    for item in questions:
+        qid = item.get("question_id")
+        qtype = item.get("type")
+        expected = item.get("answer") if isinstance(item, dict) else None
+        if qid is None:
+            continue
+        if qtype == "single":
+            choice = expected.get("choice") if isinstance(expected, dict) else "A"
+            if not wrong_used:
+                wrong_choice = "B" if choice != "B" else "C"
+                user_answer = {"choice": wrong_choice}
+                wrong_used = True
+            else:
+                user_answer = {"choice": choice or "A"}
+        elif qtype == "judge":
+            expected_value = expected.get("value") if isinstance(expected, dict) else True
+            if not wrong_used:
+                user_answer = {"value": not bool(expected_value)}
+                wrong_used = True
+            else:
+                user_answer = {"value": bool(expected_value)}
+        else:
+            user_answer = {"text": "self-review"}
+        answers.append({"question_id": qid, "user_answer": user_answer})
+
+    submit_payload = {"quiz_id": quiz_id, "answers": answers}
+    print(http_post_json("/quiz/submit", submit_payload))
+else:
+    print("quiz_id missing; skip quiz submit")
 PY

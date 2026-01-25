@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -6,12 +7,13 @@ from app.db.models import Chunk, Document
 from app.db.session import get_db
 from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
+from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.embeddings import HashEmbedder
 from app.services.index_manager import IndexManager
 from app.services.llm.mock import MockLLM
 from app.services.profile_service import build_profile_response
-from app.services.quiz_service import generate_quiz
+from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
 from .settings import load_settings
 
 app = FastAPI()
@@ -198,3 +200,23 @@ def quiz_generate(
         types=[item.value for item in request.types],
         focus_concepts=request.focus_concepts,
     )
+
+
+@app.post("/quiz/submit", response_model=QuizSubmitResponse)
+def quiz_submit(
+    request: QuizSubmitRequest,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    try:
+        return submit_quiz(
+            db=db,
+            quiz_id=request.quiz_id,
+            answers=request.answers,
+            session_id=session_id,
+        )
+    except QuizSubmitError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )

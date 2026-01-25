@@ -87,6 +87,16 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '
 curl -X POST http://localhost:8000/quiz/generate -H "Content-Type: application/json" -d '{"document_id":1,"count":5,"types":["single","judge","short"]}'
 ```
 
+### Quiz submit (Phase 2 MVP)
+
+```
+curl -X POST http://localhost:8000/quiz/submit -H "Content-Type: application/json" -d '{"quiz_id":1,"answers":[{"question_id":1,"user_answer":{"choice":"A"}},{"question_id":2,"user_answer":{"value":true}},{"question_id":3,"user_answer":{"text":"self-review"}}]}'
+```
+
+Notes:
+- `user_answer` is required for every question; short questions are not auto-graded and return a reference answer for self-review.
+- `X-Session-Id` must match the quiz session; mismatch returns 403 with `{code,message,details}`.
+
 ### Profile (Phase 2 MVP)
 
 Default session:

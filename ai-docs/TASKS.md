@@ -196,7 +196,7 @@
 - dev_smoke.sh ?? quiz_id ? questions?Easy-only?>=5 ???2026-01-25?
 ---
 
-### [ ] P2-004 接口：/quiz/submit（评分 + 提交记录落库）
+### [~] P2-004 接口：/quiz/submit（评分 + 提交记录落库）
 **目标**
 提交答案 → 对客观题判分 → 简答题给参考答案/要点（不强制自动评分）→ 落库 submission/attempt。
 
@@ -214,6 +214,11 @@
 - 简答题不强行判对错，至少返回参考答案/要点与自评提示
 - 提交记录落库可查
 - scripts/dev_smoke.sh 增加：生成→提交→输出结果
+
+**????**
+- docker compose exec backend alembic upgrade head
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
 
 ---
 
