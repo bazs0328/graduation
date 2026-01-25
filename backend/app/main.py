@@ -1,13 +1,15 @@
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.models import Chunk, Document
 from app.db.session import get_db
+from app.schemas.profile import ProfileResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.embeddings import HashEmbedder
 from app.services.index_manager import IndexManager
 from app.services.llm.mock import MockLLM
+from app.services.profile_service import build_profile_response
 from .settings import load_settings
 
 app = FastAPI()
@@ -164,3 +166,15 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     ]
 
     return {"answer": answer, "sources": sources}
+
+
+def get_session_id(x_session_id: str | None = Header(default=None)) -> str:
+    return (x_session_id or "").strip() or "default"
+
+
+@app.get("/profile/me", response_model=ProfileResponse)
+def get_profile_me(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    return build_profile_response(db, session_id)
