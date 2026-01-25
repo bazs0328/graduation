@@ -193,3 +193,4 @@ Agent 只有在满足以下条件时，才允许更新 CURRENT.md 以推进到�
 - 在 TASKS.md 中把已完成任务标记为 [x]
 
 补充：如 `CURRENT.md` 与其他文件有冲突，以 `CURRENT.md` 为准。
+默认开发入口是 task-cycle：所有任务必须通过 task-cycle 执行“一任务一分支 + 门禁 + 更新 TASKS + 等待验收”，禁止直接在 main 上推进。
