@@ -11,6 +11,8 @@
 - `create-plan`：已安装（C:\Users\bazs0\.codex\skills\create-plan）。若未生效，请重启 Codex 后确认出现 `$create-plan`
 - `gh-fix-ci`：已安装（C:\Users\bazs0\.codex\skills\gh-fix-ci）
 - `gh-address-comments`：已安装（C:\Users\bazs0\.codex\skills\gh-address-comments）
+- `skill-creator`：已安装（C:\Users\bazs0\.codex\skills\.system\skill-creator）
+- `skill-installer`：已安装（C:\Users\bazs0\.codex\skills\.system\skill-installer）
 
 ## 仓库技能（repo-scoped：.codex/skills/）
 
@@ -63,8 +65,8 @@
 - 验收命令：`pytest -q`
 
 ### task-cycle
-- 用途：自动任务循环（取下一条未完成任务→建分支→实现→门禁→更新 TASKS→输出交付摘要）
-- 调用：`$task-cycle`（默认 run_next_task），或在验收后用 merge_task 合并清理
+- 用途：自动任务循环（run_next_task 两段式：默认仅计划；确认执行后实施；支持 analyze_and_append 自动追加 Backlog 任务）
+- 调用：`$task-cycle`（默认 run_next_task plan）；确认后执行 run_next_task（或 stage=execute）；`$task-cycle` + analyze_and_append
 - 何时用：需要全自动推进单条任务并等待验收时
 - 验收命令：`bash scripts/dev_smoke.sh`（或 `pytest -q` / `alembic upgrade head`）
 

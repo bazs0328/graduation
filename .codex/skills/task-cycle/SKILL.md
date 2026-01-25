@@ -12,29 +12,36 @@ description: 全自动任务循环：从 ai-docs/TASKS.md 获取第一条未完�
 
 ## 触发条件
 - 用户要求“自动执行下一条任务/任务循环/全自动推进”
+- 用户要求“自动追加任务/分析并追加到 Backlog”
 - 需要包含分支、门禁验证、TASKS 状态更新的完整流程
 - 需要在验收后合并分支
 
 ## 输入
 - 必读文档：ai-docs/CURRENT.md、PROJECT.md、AGENTS.md、CONTEXT.md、TASKS.md、PROMPTS.md（若存在）
 - 当前仓库与 git 状态
-- run_next_task / merge_task 的参数（若提供）
+- run_next_task / analyze_and_append / merge_task 的参数（若提供）
 
 ## 输出
 - 计划输出（改代码前）
 - 变更文件清单与验证结果
 - TASKS 状态更新与验证方式记录
+- Backlog 追加任务记录（若执行 analyze_and_append）
 - 固定格式交付摘要（并等待用户验收）
 
 ## 步骤
 1. 运行前必读并遵守：ai-docs/CURRENT.md（最高优先级）、PROJECT.md、AGENTS.md、CONTEXT.md、TASKS.md、PROMPTS.md（如存在）
 2. 若缺失 CURRENT.md 或 TASKS.md：停止并提示用户补齐
 3. 若 CURRENT.md 与 TASKS 冲突：以 CURRENT.md 为准并暂停询问
-4. 根据用户选择进入子流程：run_next_task（默认）或 merge_task
+4. 根据用户选择进入子流程：run_next_task（默认）/ analyze_and_append / merge_task
 
 ## 子流程：run_next_task（默认）
 
+### 两段式流程（新增）
+- 阶段一（计划，默认）：仅生成计划输出，不创建分支、不修改代码、不更新 TASKS 状态；若 create-plan 可用必须先调用它，再补齐本技能要求的计划项。
+- 阶段二（执行）：仅在用户明确“确认执行”后进入；按下文分支/实现/验证/TASKS 更新流程实施。
+
 ### 参数（可选，含默认）
+- stage：默认 "plan"，可选 "execute"（仅在 execute 或用户明确“确认执行”后才允许实施）
 - main_branch：默认 "main"
 - branch_mode：默认 "feat"（bug 修复可用 "fix"，文档可用 "chore"）
 - stop_after_done：默认 true
@@ -42,6 +49,10 @@ description: 全自动任务循环：从 ai-docs/TASKS.md 获取第一条未完�
 - require_pytest：默认 false（存在就跑，但不强制）
 - allow_schema_change：默认 false（如为 true，必须强调升级/回滚验证）
 - task_id：可选；未提供则从 TASKS.md 取第一条 [ ] 未开始
+
+### 用法示例
+- 计划阶段（默认）：用户说“请运行 run_next_task 生成计划”→ 只输出计划并等待你回复“确认执行”
+- 执行阶段：用户说“确认执行 run_next_task”或“run_next_task stage=execute”→ 进入实施流程
 
 ### 任务选择规则（强制）
 - 只允许选择 TASKS.md 中第一条 [ ] 未开始 的任务
@@ -92,6 +103,33 @@ description: 全自动任务循环：从 ai-docs/TASKS.md 获取第一条未完�
 - 关键输出摘要：<简短>
 - 验收对照表：逐条对照该任务验收项（是/否 + 证据）
 - 等待用户验收：说明用户要跑哪些命令
+
+## 子流程：analyze_and_append
+
+### 触发条件（强制）
+- 满足“自动追加任务策略”（以 CURRENT.md / PROMPTS.md 为准）；若不满足，停止并说明原因
+- 用户明确要求“自动追加任务/分析并追加到 Backlog”
+
+### 分析范围（强制）
+- 必读：ai-docs/CURRENT.md、ai-docs/TASKS.md
+- 仓库现状：是否已有 frontend 目录；是否已接真实 LLM（配置/客户端/调用链路等）
+- 需要给出最小证据（目录/文件名或配置片段位置）
+
+### 输出与写入（强制）
+- 仅追加到 TASKS.md 的【Backlog / 待规划】区域，不改动其他任务
+- 任务编号格式：FE-### / LLM-### / REL-###（按类别递增，3 位数字）
+- 每条任务必须包含以下字段：
+  - 目标：
+  - 交付物：
+  - 验收：
+  - 依赖：
+  - 风险回滚：
+
+### 追加后动作
+- 追加完成后必须停止，等待用户确认是否开始执行（不得自动进入 run_next_task）
+
+### 用法示例
+- 用户说“请执行 analyze_and_append”→ 追加到 Backlog 并等待确认
 
 ## 子流程：merge_task
 
