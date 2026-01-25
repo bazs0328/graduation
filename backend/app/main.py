@@ -5,11 +5,13 @@ from sqlalchemy.orm import Session
 from app.db.models import Chunk, Document
 from app.db.session import get_db
 from app.schemas.profile import ProfileResponse
+from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.embeddings import HashEmbedder
 from app.services.index_manager import IndexManager
 from app.services.llm.mock import MockLLM
 from app.services.profile_service import build_profile_response
+from app.services.quiz_service import generate_quiz
 from .settings import load_settings
 
 app = FastAPI()
@@ -178,3 +180,21 @@ def get_profile_me(
     session_id: str = Depends(get_session_id),
 ):
     return build_profile_response(db, session_id)
+
+
+@app.post("/quiz/generate", response_model=QuizGenerateResponse)
+def quiz_generate(
+    request: QuizGenerateRequest,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    return generate_quiz(
+        db=db,
+        index_manager=index_manager,
+        session_id=session_id,
+        document_id=request.document_id,
+        doc_ids=request.doc_ids,
+        count=request.count,
+        types=[item.value for item in request.types],
+        focus_concepts=request.focus_concepts,
+    )
