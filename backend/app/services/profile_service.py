@@ -83,3 +83,49 @@ def build_profile_response(db: Session, session_id: Optional[str]) -> Dict[str, 
         "weak_concepts": weak_concepts,
         "last_quiz_summary": last_summary,
     }
+
+
+def build_difficulty_plan(
+    ability_level: Optional[str],
+    frustration_score: int,
+    count: int,
+) -> Dict[str, int]:
+    total = max(count, 1)
+    ability = (ability_level or DEFAULT_ABILITY_LEVEL).lower()
+    frustration = frustration_score or 0
+
+    def clamp_plan(plan: Dict[str, int]) -> Dict[str, int]:
+        for key in ("Easy", "Medium", "Hard"):
+            plan[key] = max(plan.get(key, 0), 0)
+        allocated = plan["Easy"] + plan["Medium"] + plan["Hard"]
+        if allocated < total:
+            plan["Easy"] += total - allocated
+        if allocated > total:
+            overflow = allocated - total
+            while overflow > 0 and plan["Medium"] > 0:
+                plan["Medium"] -= 1
+                overflow -= 1
+            while overflow > 0 and plan["Hard"] > 0:
+                plan["Hard"] -= 1
+                overflow -= 1
+            if overflow > 0 and plan["Easy"] > overflow:
+                plan["Easy"] -= overflow
+        return plan
+
+    if ability == "advanced" and frustration < 3:
+        plan = {
+            "Easy": max(1, total // 5),
+            "Medium": max(1, total // 2),
+            "Hard": max(1, total - (total // 5) - (total // 2)),
+        }
+        return clamp_plan(plan)
+
+    if ability == "intermediate" and frustration < 3:
+        medium = max(1, int(total * 0.4))
+        easy = max(1, total - medium)
+        plan = {"Easy": easy, "Medium": medium, "Hard": 0}
+        return clamp_plan(plan)
+
+    easy = max(1, int(total * 0.8))
+    plan = {"Easy": easy, "Medium": total - easy, "Hard": 0}
+    return clamp_plan(plan)

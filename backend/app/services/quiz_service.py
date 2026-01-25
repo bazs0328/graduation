@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import models
 from app.services.index_manager import IndexManager
+from app.services.profile_service import build_difficulty_plan, get_or_create_profile
 from app.services.llm.mock import MockLLM
 
 DEFAULT_SESSION_ID = "default"
@@ -164,6 +165,13 @@ def generate_quiz(
     if resolved_doc_ids:
         _ensure_documents_exist(db, resolved_doc_ids)
 
+    profile = get_or_create_profile(db, normalized_session)
+    difficulty_plan = build_difficulty_plan(
+        ability_level=profile.ability_level,
+        frustration_score=profile.frustration_score or 0,
+        count=count,
+    )
+
     chunks = _retrieve_chunks(db, index_manager, resolved_doc_ids, focus_concepts, count)
     chunk_cycle = cycle(chunks)
     type_cycle = cycle(types or ["single"])
@@ -172,17 +180,24 @@ def generate_quiz(
     quiz = models.Quiz(
         session_id=normalized_session,
         document_id=resolved_doc_ids[0] if resolved_doc_ids else None,
-        difficulty_plan_json={"Easy": count, "Medium": 0, "Hard": 0},
+        difficulty_plan_json=difficulty_plan,
     )
     db.add(quiz)
     db.flush()
 
     questions_payload: List[Dict[str, Any]] = []
     questions: List[models.QuizQuestion] = []
+    difficulty_sequence = (
+        ["Easy"] * difficulty_plan.get("Easy", 0)
+        + ["Medium"] * difficulty_plan.get("Medium", 0)
+        + ["Hard"] * difficulty_plan.get("Hard", 0)
+    )
+    difficulty_cycle = cycle(difficulty_sequence or ["Easy"])
     for _ in range(count):
         chunk = next(chunk_cycle)
         question_type = next(type_cycle)
-        question, payload = _build_question_payload(llm, question_type, "Easy", chunk)
+        difficulty = next(difficulty_cycle)
+        question, payload = _build_question_payload(llm, question_type, difficulty, chunk)
         question.quiz_id = quiz.id
         db.add(question)
         questions.append(question)
@@ -194,7 +209,7 @@ def generate_quiz(
 
     db.commit()
 
-    return {"quiz_id": quiz.id, "questions": questions_payload}
+    return {"quiz_id": quiz.id, "difficulty_plan": difficulty_plan, "questions": questions_payload}
 
 
 def _coerce_choice(value: Any) -> Optional[str]:
