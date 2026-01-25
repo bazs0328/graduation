@@ -45,6 +45,7 @@ $questions = if ($quiz) { $quiz.questions } else { @() }
 Write-Host "==> Quiz submit"
 if ($quizId -and $questions.Count -gt 0) {
   $answers = @()
+  $answersWrong = @()
   $wrongUsed = $false
   foreach ($q in $questions) {
     $qid = $q.question_id
@@ -59,6 +60,7 @@ if ($quizId -and $questions.Count -gt 0) {
       } else {
         $userAnswer = @{ choice = $choice }
       }
+      $wrongAnswer = @{ choice = $(if ($choice -ne "B") { "B" } else { "C" }) }
     } elseif ($qtype -eq "judge") {
       $expectedValue = if ($expected -and $null -ne $expected.value) { [bool]$expected.value } else { $true }
       if (-not $wrongUsed) {
@@ -67,15 +69,26 @@ if ($quizId -and $questions.Count -gt 0) {
       } else {
         $userAnswer = @{ value = $expectedValue }
       }
+      $wrongAnswer = @{ value = (-not $expectedValue) }
     } else {
       $userAnswer = @{ text = "self-review" }
+      $wrongAnswer = @{ text = "self-review" }
     }
     $answers += @{ question_id = $qid; user_answer = $userAnswer }
+    $answersWrong += @{ question_id = $qid; user_answer = $wrongAnswer }
   }
 
   $payload = @{ quiz_id = $quizId; answers = $answers } | ConvertTo-Json -Depth 6 -Compress
   $submit = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -ContentType "application/json" -Body $payload
   $submit | ConvertTo-Json -Compress
+
+  $payloadWrong = @{ quiz_id = $quizId; answers = $answersWrong } | ConvertTo-Json -Depth 6 -Compress
+  $submitWrong = Invoke-RestMethod -Uri "$BaseUrl/quiz/submit" -Method Post -ContentType "application/json" -Body $payloadWrong
+  $submitWrong | ConvertTo-Json -Compress
+
+  Write-Host "==> Profile me"
+  $profile = Invoke-RestMethod -Uri "$BaseUrl/profile/me"
+  $profile | ConvertTo-Json -Compress
 } else {
   Write-Host "quiz_id missing; skip quiz submit"
 }

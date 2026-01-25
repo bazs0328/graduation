@@ -111,6 +111,9 @@ Custom session:
 curl -H "X-Session-Id: demo-session" http://localhost:8000/profile/me
 ```
 
+Notes:
+- /quiz/submit 会更新 concept_stats，/profile/me 的 weak_concepts 按 wrong_count 排序展示弱项概览。
+
 ### Dev scripts
 
 Run smoke test (requires docker compose already running):
