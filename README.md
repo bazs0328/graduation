@@ -87,6 +87,9 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '
 curl -X POST http://localhost:8000/quiz/generate -H "Content-Type: application/json" -d '{"document_id":1,"count":5,"types":["single","judge","short"]}'
 ```
 
+Notes:
+- `/quiz/generate` 返回 `difficulty_plan` 并写入 quizzes.difficulty_plan_json；初学者 Hard=0，Easy 占比更高。
+
 ### Quiz submit (Phase 2 MVP)
 
 ```

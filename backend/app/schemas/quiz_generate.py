@@ -34,4 +34,5 @@ class QuizQuestionResponse(BaseModel):
 
 class QuizGenerateResponse(BaseModel):
     quiz_id: int
+    difficulty_plan: Dict[str, int]
     questions: List[QuizQuestionResponse]

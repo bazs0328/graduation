@@ -77,6 +77,7 @@ function Generate-Quiz {
   $payload = ('{"document_id":' + $docId + ',"count":5,"types":["single","judge","short"]}')
   $quiz = Invoke-RestMethod -Uri "$BaseUrl/quiz/generate" -Method Post -Headers $headers -ContentType "application/json" -Body $payload
   $quiz | ConvertTo-Json -Compress
+  Write-Host ("difficulty_plan=" + ($quiz.difficulty_plan | ConvertTo-Json -Compress))
   return $quiz
 }
 
