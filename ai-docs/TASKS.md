@@ -74,7 +74,7 @@
 
 ## 四、当前任务队列（从上到下执行）
 
-### [ ] P2-001 数据库：测验与画像最小表 + Alembic 迁移
+### [x] P2-001 数据库：测验与画像最小表 + Alembic 迁移
 **目标**
 引入最小可用的“测验闭环 + 用户画像”持久化结构。
 
@@ -96,6 +96,13 @@
 - docker compose exec backend alembic upgrade head 成功
 - 能插入并查询一条 quiz + question + profile（脚本或临时验证代码均可）
 - README 增加迁移命令与验证方法
+
+**验证方式**
+- docker compose exec backend alembic upgrade head
+- docker compose exec backend python /app/scripts/verify_quiz_schema.py
+
+**关键输出摘要**
+- 用户确认上述命令已跑通（2026-01-25）
 
 ---
 
