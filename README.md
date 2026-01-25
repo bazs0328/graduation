@@ -139,6 +139,19 @@ PowerShell alternative (Windows):
 powershell -ExecutionPolicy Bypass -File backend/scripts/dev_smoke.ps1
 ```
 
+### Phase 2 验收（端到端）
+
+```
+docker compose up -d --build backend
+docker compose exec backend sh /app/scripts/dev_smoke.sh
+docker compose exec backend pytest
+```
+
+Expected output includes:
+- quiz_id / question_count / difficulty_plan
+- score / accuracy
+- profile ability / frustration / last_quiz_summary（session-bad 含 easy_first 推荐）
+
 Reset DB + remove local index files (dev only):
 
 ```

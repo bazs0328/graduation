@@ -301,7 +301,7 @@
 
 ---
 
-### [ ] P2-009 一键闭环：更新 scripts/dev_smoke.sh（端到端）
+### [~] P2-009 一键闭环：更新 scripts/dev_smoke.sh（端到端）
 **目标**
 你只靠脚本就能验收，无需手点接口。
 
@@ -319,6 +319,15 @@
 **验收**
 - 你本地执行 dev_smoke.sh 全通过（或明确失败点）
 - 输出包含：quiz_id、score/accuracy、profile 关键字段变化、difficulty_plan
+
+**验证方式**
+- docker compose up -d --build backend
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
+
+**关键输出摘要**
+- dev_smoke.sh 输出 quiz_id/question_count/score/accuracy/difficulty_plan/profile_ability/frustration，session-bad 含 easy_first 推荐（2026-01-25）
+- pytest 4 passed（2026-01-25）
 
 ---
 
