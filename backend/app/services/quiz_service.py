@@ -13,6 +13,19 @@ DEFAULT_SESSION_ID = "default"
 MAX_SNIPPET_LENGTH = 120
 
 
+class QuizSubmitError(Exception):
+    def __init__(self, status_code: int, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+        self.details = details
+
+
+def _normalize_session_id(session_id: Optional[str]) -> str:
+    value = (session_id or "").strip()
+    return value or DEFAULT_SESSION_ID
+
+
 def _clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -181,3 +194,165 @@ def generate_quiz(
     db.commit()
 
     return {"quiz_id": quiz.id, "questions": questions_payload}
+
+
+def _coerce_choice(value: Any) -> Optional[str]:
+    if isinstance(value, dict):
+        value = value.get("choice")
+    if isinstance(value, str):
+        value = value.strip().upper()
+        return value or None
+    return None
+
+
+def _coerce_bool(value: Any) -> Optional[bool]:
+    if isinstance(value, dict):
+        value = value.get("value")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y"}:
+            return True
+        if lowered in {"false", "0", "no", "n"}:
+            return False
+    return None
+
+
+def _normalize_answers(raw_answers: Iterable[Any]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for item in raw_answers:
+        if isinstance(item, dict):
+            question_id = item.get("question_id")
+            user_answer = item.get("user_answer")
+        else:
+            question_id = getattr(item, "question_id", None)
+            user_answer = getattr(item, "user_answer", None)
+        normalized.append({"question_id": question_id, "user_answer": user_answer})
+    return normalized
+
+
+def submit_quiz(
+    db: Session,
+    quiz_id: int,
+    answers: Iterable[Any],
+    session_id: Optional[str],
+) -> Dict[str, Any]:
+    normalized_session = _normalize_session_id(session_id)
+    quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
+    if not quiz:
+        raise QuizSubmitError(404, "Quiz not found", {"quiz_id": quiz_id})
+    if quiz.session_id != normalized_session:
+        raise QuizSubmitError(
+            403,
+            "Session mismatch for quiz",
+            {"quiz_id": quiz_id, "session_id": normalized_session},
+        )
+
+    questions = (
+        db.query(models.QuizQuestion)
+        .filter(models.QuizQuestion.quiz_id == quiz_id)
+        .order_by(models.QuizQuestion.id.asc())
+        .all()
+    )
+    if not questions:
+        raise QuizSubmitError(404, "Quiz questions not found", {"quiz_id": quiz_id})
+
+    normalized_answers = _normalize_answers(answers or [])
+    if not normalized_answers:
+        raise QuizSubmitError(422, "Answers are required", {"quiz_id": quiz_id})
+
+    seen_ids: set[int] = set()
+    for item in normalized_answers:
+        question_id = item.get("question_id")
+        if not isinstance(question_id, int) or question_id <= 0:
+            raise QuizSubmitError(422, "Invalid question_id in answers", {"question_id": question_id})
+        if question_id in seen_ids:
+            raise QuizSubmitError(422, "Duplicate question_id in answers", {"question_id": question_id})
+        seen_ids.add(question_id)
+
+    question_ids = {question.id for question in questions}
+    submitted_ids = set(seen_ids)
+    missing_ids = sorted(question_ids - submitted_ids)
+    extra_ids = sorted(submitted_ids - question_ids)
+    if missing_ids or extra_ids:
+        raise QuizSubmitError(
+            422,
+            "Answers must match quiz questions",
+            {"missing_question_ids": missing_ids, "extra_question_ids": extra_ids},
+        )
+
+    answers_by_id = {item["question_id"]: item["user_answer"] for item in normalized_answers}
+    per_question_result: List[Dict[str, Any]] = []
+    correct_count = 0
+    objective_total = 0
+    has_short = False
+
+    for question in questions:
+        user_answer = answers_by_id.get(question.id)
+        expected_answer = question.answer_json
+        correct: Optional[bool] = None
+
+        if question.type == "single":
+            objective_total += 1
+            expected_choice = _coerce_choice(expected_answer)
+            user_choice = _coerce_choice(user_answer)
+            correct = user_choice is not None and expected_choice is not None and user_choice == expected_choice
+            if correct:
+                correct_count += 1
+        elif question.type == "judge":
+            objective_total += 1
+            expected_value = _coerce_bool(expected_answer)
+            user_value = _coerce_bool(user_answer)
+            correct = user_value is not None and expected_value is not None and user_value == expected_value
+            if correct:
+                correct_count += 1
+        else:
+            has_short = True
+
+        per_question_result.append(
+            {
+                "question_id": question.id,
+                "correct": correct,
+                "expected_answer": expected_answer,
+                "user_answer": user_answer,
+            }
+        )
+
+    accuracy = round(correct_count / objective_total, 4) if objective_total > 0 else 0.0
+    score = float(correct_count)
+
+    feedback_parts = []
+    if objective_total > 0:
+        feedback_parts.append(f"客观题正确 {correct_count}/{objective_total}。")
+    else:
+        feedback_parts.append("本次没有可评分的客观题。")
+    if has_short:
+        feedback_parts.append("简答题请参考参考答案自评。")
+    feedback_text = " ".join(feedback_parts)
+
+    summary_json = {
+        "quiz_id": quiz_id,
+        "score": score,
+        "accuracy": accuracy,
+        "objective_total": objective_total,
+        "correct_count": correct_count,
+        "feedback_text": feedback_text,
+        "per_question_result": per_question_result,
+    }
+
+    attempt = models.QuizAttempt(
+        quiz_id=quiz.id,
+        score=score,
+        accuracy=accuracy,
+        summary_json=summary_json,
+    )
+    db.add(attempt)
+    db.commit()
+
+    return {
+        "score": score,
+        "accuracy": accuracy,
+        "per_question_result": per_question_result,
+        "feedback_text": feedback_text,
+    }
