@@ -10,12 +10,12 @@ import QuizPage from './pages/QuizPage';
 import ProfilePage from './pages/ProfilePage';
 
 const navItems = [
-  { to: '/', label: 'Home' },
-  { to: '/upload', label: 'Upload' },
-  { to: '/index', label: 'Index' },
-  { to: '/chat', label: 'Chat' },
-  { to: '/quiz', label: 'Quiz' },
-  { to: '/profile', label: 'Profile' },
+  { to: '/', label: '首页' },
+  { to: '/upload', label: '上传资料' },
+  { to: '/index', label: '索引' },
+  { to: '/chat', label: '问答' },
+  { to: '/quiz', label: '测验' },
+  { to: '/profile', label: '画像' },
 ];
 
 function App() {
@@ -29,8 +29,8 @@ function App() {
           <div className="brand">
             <div className="brand-mark">GT</div>
             <div>
-              <p className="brand-title">Grad Tutor</p>
-              <p className="brand-sub">Frontend MVP</p>
+              <p className="brand-title">学习助理</p>
+              <p className="brand-sub">前端 MVP</p>
             </div>
           </div>
           <nav className="nav">
@@ -49,15 +49,15 @@ function App() {
           </nav>
           <div className="session">
             <label>
-              <span>Session</span>
+              <span>会话 ID</span>
               <input
                 className="input"
                 value={sessionId}
                 onChange={(event) => setSessionId(event.target.value)}
-                placeholder="default"
+                placeholder="默认 default"
               />
             </label>
-            <p className="subtle">API: {getApiBaseUrl()}</p>
+            <p className="subtle">API 地址：{getApiBaseUrl()}</p>
           </div>
         </header>
 

@@ -7,6 +7,18 @@ const DEFAULT_TYPES = {
   short: true,
 };
 
+const TYPE_LABELS = {
+  single: '单选',
+  judge: '判断',
+  short: '简答',
+};
+
+const DIFFICULTY_LABELS = {
+  Easy: '易',
+  Medium: '中',
+  Hard: '难',
+};
+
 function letterForIndex(index) {
   return String.fromCharCode(65 + index);
 }
@@ -28,7 +40,7 @@ export default function QuizPage({ sessionId, documentId }) {
   );
 
   const handleGenerate = async () => {
-    setStatus('Generating quiz...');
+    setStatus('正在生成测验...');
     setError(null);
     setSubmitResult(null);
     try {
@@ -51,7 +63,7 @@ export default function QuizPage({ sessionId, documentId }) {
       const result = await generateQuiz(payload, sessionId);
       setQuiz(result);
       setAnswers({});
-      setStatus('Quiz ready.');
+      setStatus('测验已生成。');
     } catch (err) {
       setError(err);
       setStatus('');
@@ -62,7 +74,7 @@ export default function QuizPage({ sessionId, documentId }) {
     if (!quiz) {
       return;
     }
-    setStatus('Submitting quiz...');
+    setStatus('正在提交测验...');
     setError(null);
     try {
       const payload = {
@@ -100,25 +112,25 @@ export default function QuizPage({ sessionId, documentId }) {
     <section className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Quiz</p>
-          <h1>Generate and submit</h1>
-          <p className="subtle">Create a quiz and submit answers in one place.</p>
+          <p className="eyebrow">测验</p>
+          <h1>生成并提交</h1>
+          <p className="subtle">在同一页面完成生成与提交。</p>
         </div>
       </div>
 
       <div className="card">
         <div className="form-grid">
           <label className="field">
-            <span>Document ID</span>
+            <span>文档 ID</span>
             <input
               className="input"
               value={docId}
               onChange={(event) => setDocId(event.target.value)}
-              placeholder="Optional"
+              placeholder="可选"
             />
           </label>
           <label className="field">
-            <span>Count</span>
+            <span>题量</span>
             <input
               className="input"
               type="number"
@@ -129,12 +141,12 @@ export default function QuizPage({ sessionId, documentId }) {
             />
           </label>
           <label className="field">
-            <span>Focus concepts (comma-separated)</span>
+            <span>重点概念（逗号分隔）</span>
             <input
               className="input"
               value={focusConcepts}
               onChange={(event) => setFocusConcepts(event.target.value)}
-              placeholder="Optional"
+              placeholder="可选"
             />
           </label>
         </div>
@@ -148,12 +160,12 @@ export default function QuizPage({ sessionId, documentId }) {
                   setTypes((prev) => ({ ...prev, [typeKey]: !prev[typeKey] }))
                 }
               />
-              <span>{typeKey}</span>
+              <span>{TYPE_LABELS[typeKey] || typeKey}</span>
             </label>
           ))}
         </div>
         <button className="primary" type="button" onClick={handleGenerate}>
-          Generate quiz
+          生成测验
         </button>
         <p className="status">{status}</p>
         {error && <p className="alert error">{error.message}</p>}
@@ -166,13 +178,18 @@ export default function QuizPage({ sessionId, documentId }) {
 
       {quiz && (
         <div className="card">
-          <h2>Questions</h2>
+          <h2>题目</h2>
           <div className="question-list">
             {quiz.questions.map((question, index) => (
               <div className="question" key={question.question_id}>
                 <div className="question-meta">
-                  <span className="badge">{question.type}</span>
-                  <span className="badge">{question.difficulty}</span>
+                  <span className="badge">
+                    {TYPE_LABELS[question.type] || question.type}
+                  </span>
+                  <span className="badge">
+                    {DIFFICULTY_LABELS[question.difficulty] ||
+                      question.difficulty}
+                  </span>
                 </div>
                 <p className="question-title">
                   {index + 1}. {question.stem}
@@ -209,7 +226,7 @@ export default function QuizPage({ sessionId, documentId }) {
                         checked={answers[question.question_id] === true}
                         onChange={() => updateAnswer(question.question_id, true)}
                       />
-                      <span>True</span>
+                      <span>正确</span>
                     </label>
                     <label className="option">
                       <input
@@ -218,13 +235,13 @@ export default function QuizPage({ sessionId, documentId }) {
                         checked={answers[question.question_id] === false}
                         onChange={() => updateAnswer(question.question_id, false)}
                       />
-                      <span>False</span>
+                      <span>错误</span>
                     </label>
                   </div>
                 )}
                 {question.type === 'short' && (
                   <label className="field">
-                    <span>Your answer</span>
+                    <span>你的回答</span>
                     <textarea
                       className="input"
                       rows="3"
@@ -236,31 +253,31 @@ export default function QuizPage({ sessionId, documentId }) {
                   </label>
                 )}
                 {question.explanation && (
-                  <p className="subtle">Explanation: {question.explanation}</p>
+                  <p className="subtle">解析：{question.explanation}</p>
                 )}
               </div>
             ))}
           </div>
           <button className="primary" type="button" onClick={handleSubmit}>
-            Submit quiz
+            提交测验
           </button>
         </div>
       )}
 
       {submitResult && (
         <div className="card">
-          <h2>Result</h2>
+          <h2>结果</h2>
           <div className="grid-3">
             <div>
-              <p className="label">Score</p>
+              <p className="label">得分</p>
               <p className="metric">{submitResult.score}</p>
             </div>
             <div>
-              <p className="label">Accuracy</p>
+              <p className="label">准确率</p>
               <p className="metric">{submitResult.accuracy}</p>
             </div>
             <div>
-              <p className="label">Feedback</p>
+              <p className="label">反馈</p>
               <p className="subtle">{submitResult.feedback_text}</p>
             </div>
           </div>

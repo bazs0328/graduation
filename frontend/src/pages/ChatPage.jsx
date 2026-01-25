@@ -11,10 +11,10 @@ export default function ChatPage({ sessionId }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!query.trim()) {
-      setError(new Error('Please enter a question.'));
+      setError(new Error('请输入问题。'));
       return;
     }
-    setStatus('Thinking...');
+    setStatus('正在思考...');
     setError(null);
     setAnswer(null);
     try {
@@ -31,25 +31,25 @@ export default function ChatPage({ sessionId }) {
     <section className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Chat</p>
-          <h1>Ask a question</h1>
-          <p className="subtle">Answers are based on indexed chunks.</p>
+          <p className="eyebrow">问答</p>
+          <h1>提问</h1>
+          <p className="subtle">回答基于索引的资料片段。</p>
         </div>
       </div>
 
       <div className="card">
         <form className="form" onSubmit={handleSubmit}>
           <label className="field">
-            <span>Question</span>
+            <span>问题</span>
             <input
               className="input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ask something from your documents"
+              placeholder="请输入与资料相关的问题"
             />
           </label>
           <label className="field">
-            <span>Top K</span>
+            <span>Top K（召回数）</span>
             <input
               className="input"
               type="number"
@@ -58,37 +58,35 @@ export default function ChatPage({ sessionId }) {
               onChange={(event) => setTopK(event.target.value)}
             />
           </label>
-          <button className="primary" type="submit">
-            Send
-          </button>
+          <button className="primary" type="submit">发送</button>
         </form>
         <p className="status">{status}</p>
         {error && <p className="alert error">{error.message}</p>}
       </div>
 
       <div className="card">
-        <h2>Answer</h2>
+        <h2>回答</h2>
         {answer ? (
           <>
             <p className="answer">{answer.answer}</p>
             {answer.sources?.length ? (
               <div className="sources">
-                <p className="label">Sources (raw)</p>
+                <p className="label">来源（原始）</p>
                 <ul>
                   {answer.sources.map((source) => (
                     <li key={`${source.document_id}-${source.chunk_id}`}>
-                      doc {source.document_id} / chunk {source.chunk_id} / score{' '}
+                      文档 {source.document_id} / 片段 {source.chunk_id} / 分数{' '}
                       {source.score}
                     </li>
                   ))}
                 </ul>
               </div>
             ) : (
-              <p className="subtle">No sources returned.</p>
+              <p className="subtle">暂无来源返回。</p>
             )}
           </>
         ) : (
-          <p className="subtle">Ask a question to see the response.</p>
+          <p className="subtle">提交问题后将在这里显示回答。</p>
         )}
       </div>
     </section>

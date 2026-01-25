@@ -7,7 +7,7 @@ export default function ProfilePage({ sessionId }) {
   const [error, setError] = useState(null);
 
   const handleLoad = async () => {
-    setStatus('Loading profile...');
+    setStatus('正在加载画像...');
     setError(null);
     try {
       const result = await getProfile(sessionId);
@@ -23,22 +23,22 @@ export default function ProfilePage({ sessionId }) {
     <section className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Profile</p>
-          <h1>Learning profile</h1>
-          <p className="subtle">Ability level, frustration score, and weak concepts.</p>
+          <p className="eyebrow">画像</p>
+          <h1>学习画像</h1>
+          <p className="subtle">能力水平、挫败度、薄弱概念。</p>
         </div>
       </div>
 
       <div className="card">
         <button className="primary" type="button" onClick={handleLoad}>
-          Load profile
+          加载画像
         </button>
         <p className="status">{status}</p>
         {error && <p className="alert error">{error.message}</p>}
         {profile ? (
           <pre className="code-block">{JSON.stringify(profile, null, 2)}</pre>
         ) : (
-          <p className="subtle">Click to fetch the profile.</p>
+          <p className="subtle">点击按钮获取画像。</p>
         )}
       </div>
     </section>
