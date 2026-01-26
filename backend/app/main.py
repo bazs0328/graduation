@@ -12,9 +12,8 @@ from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
 from app.services.document_parser import build_chunks, extract_text
-from app.services.embeddings import HashEmbedder
 from app.services.index_manager import IndexManager
-from app.services.llm.mock import MockLLM
+from app.services.provider_factory import build_embedder, build_llm_client
 from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
 from .settings import load_settings
@@ -36,11 +35,11 @@ app.add_middleware(
 )
 settings = load_settings()
 index_manager = IndexManager(
-    embedder=HashEmbedder(),
+    embedder=build_embedder(settings),
     index_path=settings.faiss_index_path,
     mapping_path=settings.faiss_mapping_path,
 )
-llm_client = MockLLM()
+llm_client = build_llm_client(settings)
 MAX_CONTEXT_LENGTH = 4000
 
 
@@ -216,6 +215,7 @@ def quiz_generate(
         count=request.count,
         types=[item.value for item in request.types],
         focus_concepts=request.focus_concepts,
+        llm_client=llm_client,
     )
 
 

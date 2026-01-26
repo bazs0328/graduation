@@ -13,6 +13,7 @@ from app.services.profile_service import (
     get_last_quiz_summary,
     get_or_create_profile,
 )
+from app.services.llm.base import LLMClient
 from app.services.llm.mock import MockLLM
 
 DEFAULT_SESSION_ID = "default"
@@ -101,7 +102,7 @@ def _retrieve_chunks(
 
 
 def _build_question_payload(
-    llm: MockLLM,
+    llm: LLMClient,
     question_type: str,
     difficulty: str,
     chunk: models.Chunk,
@@ -163,6 +164,7 @@ def generate_quiz(
     count: int,
     types: Sequence[str],
     focus_concepts: Optional[Sequence[str]],
+    llm_client: Optional[LLMClient] = None,
 ) -> Dict[str, Any]:
     normalized_session = (session_id or "").strip() or DEFAULT_SESSION_ID
     resolved_doc_ids: Optional[Sequence[int]] = doc_ids or ([document_id] if document_id else None)
@@ -184,7 +186,7 @@ def generate_quiz(
     chunks = _retrieve_chunks(db, index_manager, resolved_doc_ids, focus_concepts, count)
     chunk_cycle = cycle(chunks)
     type_cycle = cycle(types or ["single"])
-    llm = MockLLM()
+    llm = llm_client or MockLLM()
 
     quiz = models.Quiz(
         session_id=normalized_session,
