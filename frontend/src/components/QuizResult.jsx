@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from 'react';
+import { resolveSources } from '../lib/api';
 import {
   DIFFICULTY_LABELS,
   TYPE_LABELS,
@@ -22,12 +24,56 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
   }
 
   const questions = Array.isArray(quiz?.questions) ? quiz.questions : [];
+  const [sourceMap, setSourceMap] = useState({});
+  const [sourceStatus, setSourceStatus] = useState('');
+  const [sourceError, setSourceError] = useState(null);
   const questionsById = new Map(questions.map((item) => [item.question_id, item]));
   const difficultyPlan = quiz?.difficulty_plan || {};
   const recommendationText = formatRecommendation(summary);
   const perQuestion = Array.isArray(result.per_question_result)
     ? result.per_question_result
     : [];
+  const allChunkIds = useMemo(() => {
+    const ids = new Set();
+    questions.forEach((question) => {
+      (question?.source_chunk_ids || []).forEach((chunkId) => {
+        if (Number.isInteger(chunkId)) {
+          ids.add(chunkId);
+        }
+      });
+    });
+    return Array.from(ids);
+  }, [questions]);
+
+  useEffect(() => {
+    if (!allChunkIds.length) {
+      setSourceMap({});
+      return;
+    }
+    let active = true;
+    setSourceStatus('正在加载引用...');
+    setSourceError(null);
+    resolveSources({ chunk_ids: allChunkIds })
+      .then((result) => {
+        if (!active) return;
+        const map = {};
+        (result?.items || []).forEach((item) => {
+          if (item?.chunk_id != null) {
+            map[item.chunk_id] = item;
+          }
+        });
+        setSourceMap(map);
+        setSourceStatus('');
+      })
+      .catch((err) => {
+        if (!active) return;
+        setSourceError(err);
+        setSourceStatus('');
+      });
+    return () => {
+      active = false;
+    };
+  }, [allChunkIds]);
 
   return (
     <div className="card">
@@ -64,6 +110,10 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
         </div>
       </div>
 
+      {sourceStatus && <p className="hint">{sourceStatus}</p>}
+      {sourceError && (
+        <p className="alert error">引用加载失败：{sourceError.message}</p>
+      )}
       <div className="result-list">
         {perQuestion.map((item, index) => {
           const question = questionsById.get(item.question_id);
@@ -95,6 +145,38 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
               {question?.explanation && (
                 <p className="hint">解析：{question.explanation}</p>
               )}
+              <div className="sources">
+                <p className="label">引用来源</p>
+                {question?.source_chunk_ids?.length ? (
+                  <div className="source-list">
+                    {question.source_chunk_ids
+                      .map((chunkId) => sourceMap[chunkId])
+                      .filter(Boolean)
+                      .map((source) => (
+                        <div className="source-item" key={source.chunk_id}>
+                          <div className="source-meta">
+                            <span className="badge">
+                              {source.document_name
+                                ? source.document_name
+                                : `文档 ${source.document_id}`}
+                            </span>
+                            <span className="badge">片段 {source.chunk_id}</span>
+                          </div>
+                          <p className="source-preview">
+                            {source.text_preview || '暂无摘要'}
+                          </p>
+                        </div>
+                      ))}
+                    {!question.source_chunk_ids
+                      .map((chunkId) => sourceMap[chunkId])
+                      .filter(Boolean).length && (
+                      <p className="subtle">暂无引用可展示。</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="subtle">暂无引用可展示。</p>
+                )}
+              </div>
             </div>
           );
         })}

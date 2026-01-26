@@ -421,7 +421,7 @@
 - 回滚：关闭配置开关并移除新增依赖
 
 
-### [ ] FE-003 Chat/Quiz 引用与溯源展示
+### [~] FE-003 Chat/Quiz 引用与溯源展示
 **目标**
 在前端清晰展示回答/题目的证据来源，向用户解释“为什么这样答/这样出题”。
 
@@ -435,6 +435,10 @@
 - 使用 sample.md 上传并索引后，前端 Chat 问答能显示至少 1 条引用
 - Quiz 结果页每题显示来源或明确“暂无引用”
 - 前端无需手工 curl 即可看到引用信息
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- cd frontend && npm run build
 
 **依赖**
 - FE-001

@@ -243,6 +243,33 @@ textarea.input {
   margin-top: 12px;
 }
 
+.source-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.source-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.source-preview {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .label {
   text-transform: uppercase;
   letter-spacing: 0.18em;

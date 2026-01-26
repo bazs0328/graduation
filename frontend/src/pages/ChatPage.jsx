@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { chat } from '../lib/api';
+import { chat, resolveSources } from '../lib/api';
 
 export default function ChatPage({ sessionId }) {
   const [query, setQuery] = useState('');
@@ -7,6 +7,9 @@ export default function ChatPage({ sessionId }) {
   const [answer, setAnswer] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState(null);
+  const [sourceItems, setSourceItems] = useState([]);
+  const [sourceStatus, setSourceStatus] = useState('');
+  const [sourceError, setSourceError] = useState(null);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -17,10 +20,27 @@ export default function ChatPage({ sessionId }) {
     setStatus('正在思考...');
     setError(null);
     setAnswer(null);
+    setSourceItems([]);
+    setSourceStatus('');
+    setSourceError(null);
     try {
       const result = await chat(query.trim(), Number(topK), sessionId);
       setAnswer(result);
       setStatus('');
+      const chunkIds = (result?.sources || [])
+        .map((item) => item?.chunk_id)
+        .filter((id) => Number.isInteger(id));
+      if (chunkIds.length) {
+        setSourceStatus('正在加载引用...');
+        try {
+          const resolved = await resolveSources({ chunk_ids: chunkIds }, sessionId);
+          setSourceItems(resolved?.items || []);
+          setSourceStatus('');
+        } catch (err) {
+          setSourceError(err);
+          setSourceStatus('');
+        }
+      }
     } catch (err) {
       setError(err);
       setStatus('');
@@ -71,15 +91,32 @@ export default function ChatPage({ sessionId }) {
             <p className="answer">{answer.answer}</p>
             {answer.sources?.length ? (
               <div className="sources">
-                <p className="label">来源（原始）</p>
-                <ul>
-                  {answer.sources.map((source) => (
-                    <li key={`${source.document_id}-${source.chunk_id}`}>
-                      文档 {source.document_id} / 片段 {source.chunk_id} / 分数{' '}
-                      {source.score}
-                    </li>
-                  ))}
-                </ul>
+                <p className="label">引用来源</p>
+                {sourceStatus && <p className="hint">{sourceStatus}</p>}
+                {sourceError && (
+                  <p className="alert error">引用加载失败：{sourceError.message}</p>
+                )}
+                {sourceItems.length ? (
+                  <div className="source-list">
+                    {sourceItems.map((item) => (
+                      <div className="source-item" key={item.chunk_id}>
+                        <div className="source-meta">
+                          <span className="badge">
+                            {item.document_name
+                              ? item.document_name
+                              : `文档 ${item.document_id}`}
+                          </span>
+                          <span className="badge">片段 {item.chunk_id}</span>
+                        </div>
+                        <p className="source-preview">
+                          {item.text_preview || '暂无摘要'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="subtle">暂无引用可展示。</p>
+                )}
               </div>
             ) : (
               <p className="subtle">暂无来源返回。</p>
