@@ -11,6 +11,7 @@ from app.db.models import Chunk, Document
 from app.db.session import get_db
 from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
+from app.schemas.quiz_recent import QuizRecentRequest, QuizRecentResponse
 from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
 from app.schemas.source import SourceResolveRequest, SourceResolveResponse
 from app.services.document_parser import build_chunks, extract_text
@@ -19,6 +20,7 @@ from app.services.llm.mock import MockLLM
 from app.services.provider_factory import build_embedder, build_llm_client
 from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
+from app.services.quiz_recent_service import list_recent_quizzes
 from app.services.source_service import SourceResolveError, resolve_sources
 from .settings import load_settings
 
@@ -261,3 +263,13 @@ def quiz_submit(
             status_code=exc.status_code,
             content={"code": exc.status_code, "message": exc.message, "details": exc.details},
         )
+
+
+@app.post("/quizzes/recent", response_model=QuizRecentResponse)
+def quizzes_recent(
+    request: QuizRecentRequest,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    items = list_recent_quizzes(db, session_id, request.limit)
+    return {"items": items}

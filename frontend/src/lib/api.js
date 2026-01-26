@@ -97,6 +97,17 @@ export function resolveSources(payload, sessionId) {
   );
 }
 
+export function getRecentQuizzes(limit = 5, sessionId) {
+  return request(
+    '/quizzes/recent',
+    {
+      method: 'POST',
+      body: JSON.stringify({ limit }),
+    },
+    sessionId,
+  );
+}
+
 export function getApiBaseUrl() {
   return API_BASE_URL;
 }

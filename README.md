@@ -121,6 +121,21 @@ Notes:
 - `X-Session-Id` must match the quiz session; mismatch returns 403 with `{code,message,details}`.
 - 若 accuracy < 30% 或前 5 道客观题错 >= 4，会追加鼓励反馈并在 last_quiz_summary 写入 `next_quiz_recommendation=easy_first`，下次生成更保守。
 
+### Quiz recent (history list)
+
+```
+curl -X POST http://localhost:8000/quizzes/recent -H "Content-Type: application/json" -H "X-Session-Id: default" -d '{"limit":5}'
+```
+
+Response example:
+
+```
+{"items":[{"quiz_id":1,"submitted_at":"2026-01-26T08:40:09","score":3.0,"accuracy":0.75,"difficulty_plan":{"Easy":3,"Medium":2,"Hard":0},"summary":{"score":3.0,"accuracy":0.75}}]}
+```
+
+Notes:
+- limit 默认 5，范围 1-20；无记录时返回空数组。
+
 ### Profile (Phase 2 MVP)
 
 Default session:
@@ -204,10 +219,12 @@ Notes:
 4) Generate + submit a quiz
 5) Load profile
 6) View learning path
+7) View dashboard (recent quizzes)
 
 Notes:
 - 测验提交后展示得分/准确率/逐题结果、难度计划与推荐信息（来源 /profile/me）。
 - 学习路径基于 /profile/me 的 weak_concepts 与 last_quiz_summary 规则生成。
+- 仪表盘通过 /quizzes/recent 获取最近 5 次测验记录。
 
 ### Phase 2 验收（端到端）
 

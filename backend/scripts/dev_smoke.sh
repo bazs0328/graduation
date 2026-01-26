@@ -229,4 +229,14 @@ def submit_and_profile(session_id: str, mode: str) -> None:
 
 submit_and_profile("session-good", "good")
 submit_and_profile("session-bad", "bad")
+step("Quiz recent (session-good)")
+recent_raw = http_post_json(
+    "/quizzes/recent",
+    {"limit": 5},
+    headers={"X-Session-Id": "session-good"},
+)
+print(recent_raw)
+recent_data = json.loads(recent_raw)
+if not isinstance(recent_data.get("items"), list):
+    raise SystemExit("recent quizzes missing items list")
 PY

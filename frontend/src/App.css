@@ -520,6 +520,7 @@ textarea.input {
   text-decoration: underline;
 }
 
+
 @media (max-width: 720px) {
   .topbar {
     position: static;

@@ -8,6 +8,7 @@ import IndexPage from './pages/IndexPage';
 import ChatPage from './pages/ChatPage';
 import QuizPage from './pages/QuizPage';
 import LearningPathPage from './pages/LearningPath';
+import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { to: '/chat', label: '问答' },
   { to: '/quiz', label: '测验' },
   { to: '/learning', label: '学习路径' },
+  { to: '/dashboard', label: '仪表盘' },
   { to: '/profile', label: '画像' },
 ];
 
@@ -85,6 +87,10 @@ function App() {
             <Route
               path="/learning"
               element={<LearningPathPage sessionId={sessionId} />}
+            />
+            <Route
+              path="/dashboard"
+              element={<DashboardPage sessionId={sessionId} />}
             />
             <Route
               path="/profile"
