@@ -94,7 +94,34 @@ step("Search keyword")
 print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 
 step("Chat question")
-print(http_post_json("/chat", {"query": "fox", "top_k": 5}))
+chat_raw = http_post_json("/chat", {"query": "fox", "top_k": 5})
+print(chat_raw)
+chat_data = json.loads(chat_raw)
+
+
+def resolve_sources(label: str, chunk_ids: list[int]) -> list[dict]:
+    step(label)
+    if not chunk_ids:
+        print("chunk_ids missing; skip sources resolve")
+        return []
+    resolved_raw = http_post_json(
+        "/sources/resolve",
+        {"chunk_ids": chunk_ids, "preview_len": 120},
+    )
+    print(resolved_raw)
+    resolved = json.loads(resolved_raw)
+    items = resolved.get("items") or []
+    if not items:
+        raise SystemExit("sources resolve returned empty")
+    return items
+
+
+chat_chunk_ids = [
+    item.get("chunk_id")
+    for item in (chat_data.get("sources") or [])
+    if isinstance(item, dict) and item.get("chunk_id") is not None
+]
+resolve_sources("Chat sources resolve", chat_chunk_ids)
 
 def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | None, list, dict]:
     step(f"{label} ({session_id})")
@@ -117,6 +144,10 @@ def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | 
     print(f"difficulty_plan={plan}")
     if len(questions) < 5:
         raise SystemExit("quiz question count < 5")
+    first_sources = []
+    if questions and isinstance(questions[0], dict):
+        first_sources = questions[0].get("source_chunk_ids") or []
+    resolve_sources("Quiz sources resolve", first_sources)
     return quiz_id, questions, plan
 
 
