@@ -396,7 +396,7 @@
 - 风险：题型字段变更导致渲染失败
 - 回滚：回退到上一版 UI 组件
 
-### [ ] LLM-001 真实 LLM/Embedding 可配置切换
+### [~] LLM-001 真实 LLM/Embedding 可配置切换
 **目标**
 提供可切换的真实 LLM/Embedding 接入，同时保留 Mock/Hash 兜底。
 
@@ -408,6 +408,10 @@
 **验收**
 - 配置真实 provider 后生成/问答可用
 - 切回 Mock/Hash 后仍可运行
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
 
 **依赖**
 - 明确 provider 与 API Key 获取方式

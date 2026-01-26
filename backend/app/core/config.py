@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Optional
 from urllib.parse import quote_plus
 
 
@@ -14,6 +15,14 @@ class Settings:
     data_dir: str
     faiss_index_path: str
     faiss_mapping_path: str
+    llm_provider: str
+    llm_base_url: str
+    llm_model: str
+    llm_embedding_model: str
+    llm_embedding_dim: Optional[int]
+    llm_timeout: float
+    llm_max_tokens: int
+    deepseek_api_key: str
 
 
 def _build_database_url(
@@ -51,6 +60,15 @@ def load_settings() -> Settings:
 
     faiss_index_path = os.path.join(data_dir, "faiss.index")
     faiss_mapping_path = os.path.join(data_dir, "mapping.json")
+    llm_provider = os.getenv("LLM_PROVIDER", "deepseek")
+    llm_base_url = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+    llm_model = os.getenv("LLM_MODEL", "deepseek-reasoner")
+    llm_embedding_model = os.getenv("LLM_EMBEDDING_MODEL", "")
+    embedding_dim_raw = os.getenv("LLM_EMBEDDING_DIM", "").strip()
+    llm_embedding_dim = int(embedding_dim_raw) if embedding_dim_raw else None
+    llm_timeout = float(os.getenv("LLM_TIMEOUT", "30"))
+    llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "512"))
+    deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
 
     return Settings(
         mysql_host=mysql_host,
@@ -62,4 +80,12 @@ def load_settings() -> Settings:
         data_dir=data_dir,
         faiss_index_path=faiss_index_path,
         faiss_mapping_path=faiss_mapping_path,
+        llm_provider=llm_provider,
+        llm_base_url=llm_base_url,
+        llm_model=llm_model,
+        llm_embedding_model=llm_embedding_model,
+        llm_embedding_dim=llm_embedding_dim,
+        llm_timeout=llm_timeout,
+        llm_max_tokens=llm_max_tokens,
+        deepseek_api_key=deepseek_api_key,
     )
