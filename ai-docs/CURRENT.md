@@ -2,29 +2,28 @@
 # 当前阶段说明（会频繁更新，以此为最高优先级）
 
 ## 阶段名称
-Phase 3：前端 MVP + 可配置真实 LLM/Embedding + 交付与稳定性
+Phase 4：体验对齐与产品化（Lite）
 
 ---
 
 ## 阶段目标（本阶段只做这些）
 
-在保持 Phase 1/2 主链路稳定的前提下，补齐可用的前端与可配置接入：
+在保持 Phase 1/2/3 主链路稳定的前提下，进一步对齐目标产品体验：
 
-1. 前端 MVP 可用：上传/建索引/问答/测验生成与提交/画像查看可完整操作，并具备最小引用展示/学习路径/学习记录入口
-2. 前后端契约稳定：核心接口的输入/输出结构清晰、错误提示可理解
-3. 真实 LLM/Embedding 可配置：支持切换真实 provider 与 Mock/Hash 兜底
-4. 交付与稳定性：一键启动、README/脚本可复现、重启后关键链路可用
+1. 体验对齐：仪表盘详情/学习记录聚合/学习路径增强，让用户完成闭环后有清晰下一步
+2. 资料管理增强：多文档组织（集合/标签/最近使用）以支撑更长周期学习
+3. 题目质量与可解释：题型覆盖更合理、解析与引用更完整
+4. 交付与稳定性：端到端可复现、重启后关键链路可用（含检索）
 
 ---
 
 ## 本阶段交付重点（建议至少这些）
 
-- 前端页面/流程：上传资料、索引重建、问答、测验生成与提交、画像查看
-- 可解释与可追溯：Chat/Quiz 结果展示引用/来源（chunk/文档）
-- 学习引导：学习路径 Lite（规则驱动，非多 Agent）
-- 学习记录：仪表盘/历史记录入口（最小版）
-- 配置与说明：LLM/Embedding provider 配置开关与 README 说明
-- 验证：前端端到端流程可复现（不依赖手工 curl）
+- 学习记录增强：仪表盘详情页、学习活动聚合（最小版）
+- 学习引导增强：学习路径质量提升，清晰来源与下一步动作
+- 资料组织：多文档集合/标签/最近使用（最小可用）
+- 题目与解释：题型覆盖/解析可追溯（引用更完整）
+- 验证：端到端流程可复现，重启后检索可用
 
 ---
 
@@ -42,7 +41,7 @@ Phase 3：前端 MVP + 可配置真实 LLM/Embedding + 交付与稳定性
 
 - 引入复杂机器学习训练/微调
 - 引入多角色权限系统（教师/管理员）
-- 多 Agent 双循环、深度研究、Web 搜索、代码执行等重型能力
+- 多 Agent 双循环、深度研究、Web 搜索、代码执行等重型能力（除非明确授权）
 - 大规模重构已稳定的上传/解析/索引/检索链路
 - 同时推进多个大模块（一次只推进一个纵向切片）
 
@@ -50,23 +49,27 @@ Phase 3：前端 MVP + 可配置真实 LLM/Embedding + 交付与稳定性
 
 ## 本阶段完成标准（满足才进入下一阶段）
 
-- 前端 MVP 可完整走通闭环（上传→索引→问答→测验生成/提交→画像），并包含引用展示、学习路径 Lite、学习记录入口
-- 真实 LLM/Embedding 可配置切换可用，Mock/Hash 兜底仍可运行
+- 学习记录与路径增强可用：仪表盘详情 + 路径清晰、可解释
+- 资料组织能力具备最小可用（集合/标签/最近使用）
+- 题目生成与解析质量提升且可追溯
 - README/脚本提供可复现步骤，smoke/pytest 通过
-- 重启服务后关键链路仍可用
+- 重启服务后关键链路仍可用（含检索）
 
 ---
 
 ## 阶段推进记录（门禁）
 
-验收日期：2026-01-25
+验收日期：2026-01-26
 验收命令：
 1) docker compose up -d --build backend
-2) docker compose exec backend alembic upgrade head
-3) docker compose exec backend sh /app/scripts/dev_smoke.sh
-4) docker compose exec backend pytest
+2) docker compose exec backend sh /app/scripts/dev_smoke.sh
+3) docker compose exec backend pytest
+4) docker compose exec backend alembic upgrade head
+5) docker compose restart backend
+6) docker compose exec backend python - <<'PY' ... POST /search 验证索引可用
 
 关键输出摘要：
-- dev_smoke.sh 覆盖 health/upload/index/chat/quiz/submit/profile，输出 quiz_id/score/accuracy/difficulty_plan/profile 字段（2026-01-25）
-- alembic upgrade head 通过（2026-01-25）
-- pytest 4 passed（2026-01-25）
+- dev_smoke.sh 覆盖 health/upload/index/chat/quiz/submit/profile/sources/quiz recent（2026-01-26）
+- pytest 4 passed（2026-01-26）
+- alembic upgrade head 通过（2026-01-26）
+- 重启后 /search 返回结果，索引可用（2026-01-26）
