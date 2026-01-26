@@ -139,6 +139,24 @@ PowerShell alternative (Windows):
 powershell -ExecutionPolicy Bypass -File backend/scripts/dev_smoke.ps1
 ```
 
+### LLM Provider (Deepseek, OpenAI-compatible)
+
+Default uses MockLLM + HashEmbedder. To enable Deepseek, only `DEEPSEEK_API_KEY` is required
+(base URL/model已给默认值，可按需覆盖)：
+
+```
+DEEPSEEK_API_KEY=your_key
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-reasoner
+```
+
+Notes:
+- 未配置 `DEEPSEEK_API_KEY` 时自动回退 Mock/Hash，保证可运行。
+- 如需真实向量，请额外设置：
+  - `LLM_EMBEDDING_MODEL=your_embedding_model`
+  - `LLM_EMBEDDING_DIM=embedding_dim`
+  - 改动后需 `POST /index/rebuild` 重新建索引。
+
 ## Frontend MVP (Phase 3)
 
 ### Setup (React + Vite)
