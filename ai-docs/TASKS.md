@@ -511,6 +511,10 @@
 - LLM 可触发工具并返回可追溯引用
 - 工具调用失败时可安全降级（无 500）
 
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
+
 **依赖**
 - 现有 LLM provider 支持 tool calls
 - 环境变量配置
