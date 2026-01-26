@@ -151,6 +151,7 @@ LLM_MODEL=deepseek-reasoner
 ```
 
 Notes:
+- docker compose 会读取根目录 `.env` 并注入到 backend 容器。
 - 未配置 `DEEPSEEK_API_KEY` 时自动回退 Mock/Hash，保证可运行。
 - 如需真实向量，请额外设置：
   - `LLM_EMBEDDING_MODEL=your_embedding_model`
