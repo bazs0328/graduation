@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime
 from itertools import cycle
@@ -18,6 +19,7 @@ from app.services.llm.mock import MockLLM
 
 DEFAULT_SESSION_ID = "default"
 MAX_SNIPPET_LENGTH = 120
+logger = logging.getLogger(__name__)
 
 
 class QuizSubmitError(Exception):
@@ -126,7 +128,7 @@ def _build_question_payload(
         answer = {"value": True}
         stem = f"判断正误：{snippet}" if snippet else "判断正误：资料片段为空"
     else:
-        summary = llm.generate_answer("概括要点", snippet or "")
+        summary = _safe_llm_generate(llm, "概括要点", snippet or "")
         answer = {"reference_answer": summary}
         stem = f"简要概括以下内容的要点：{snippet}" if snippet else "简要概括以下内容的要点："
 
@@ -153,6 +155,18 @@ def _build_question_payload(
         "related_concept": related_concept,
     }
     return question, payload
+
+
+def _safe_llm_generate(llm: LLMClient, query: str, context: str) -> str:
+    try:
+        return llm.generate_answer(query, context)
+    except Exception as exc:
+        logger.warning("LLM generate failed, falling back to MockLLM: %s", exc)
+        try:
+            return MockLLM().generate_answer(query, context)
+        except Exception:
+            logger.exception("MockLLM fallback failed.")
+            raise
 
 
 def generate_quiz(

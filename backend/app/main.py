@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
@@ -13,6 +14,7 @@ from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.index_manager import IndexManager
+from app.services.llm.mock import MockLLM
 from app.services.provider_factory import build_embedder, build_llm_client
 from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
@@ -41,6 +43,7 @@ index_manager = IndexManager(
 )
 llm_client = build_llm_client(settings)
 MAX_CONTEXT_LENGTH = 4000
+logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
@@ -179,7 +182,11 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     if not context:
         return {"answer": "资料中未找到相关内容", "sources": []}
 
-    answer = llm_client.generate_answer(request.query, context)
+    try:
+        answer = llm_client.generate_answer(request.query, context)
+    except Exception as exc:
+        logger.warning("LLM generate failed in /chat, falling back to MockLLM: %s", exc)
+        answer = MockLLM().generate_answer(request.query, context)
     sources = [
         {"chunk_id": item["chunk_id"], "document_id": item["document_id"], "score": item["score"]}
         for item in matched_results
