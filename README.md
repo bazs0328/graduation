@@ -81,6 +81,30 @@ curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d
 curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+Notes:
+- 若启用工具链（LLM_TOOLS_ENABLED=1），/chat 会返回 `tool_traces` 记录工具调用轨迹。
+
+### Tool calls (safe calc)
+
+Enable tools (default on in `.env.example`):
+
+```
+LLM_TOOLS_ENABLED=1
+LLM_TOOL_WHITELIST=calc
+```
+
+Example:
+
+```
+curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"calc: 2+2","top_k":1}'
+```
+
+Response example:
+
+```
+{"answer":"计算结果：4","sources":[],"tool_traces":[{"tool_name":"calc","input":{"expression":"2+2"},"output":"4","error":null,"duration_ms":1}]}
+```
+
 ### Sources resolve (citation metadata)
 
 Resolve chunk ids to document name + text preview:

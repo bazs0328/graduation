@@ -22,6 +22,7 @@ from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
 from app.services.quiz_recent_service import list_recent_quizzes
 from app.services.source_service import SourceResolveError, resolve_sources
+from app.services.tools import build_tool_registry
 from .settings import load_settings
 
 def _load_cors_origins() -> list[str]:
@@ -46,6 +47,7 @@ index_manager = IndexManager(
     mapping_path=settings.faiss_mapping_path,
 )
 llm_client = build_llm_client(settings)
+tool_registry = build_tool_registry(settings)
 MAX_CONTEXT_LENGTH = 4000
 logger = logging.getLogger(__name__)
 
@@ -149,9 +151,13 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     if not index_manager.is_ready():
         raise HTTPException(status_code=409, detail="Index not built. Call POST /index/rebuild first.")
 
+    forced_tool = _pick_forced_tool(request.query)
     results = index_manager.search(request.query, request.top_k, db)
     if not results:
-        return {"answer": "资料中未找到相关内容", "sources": []}
+        if forced_tool and tool_registry:
+            results = []
+        else:
+            return {"answer": "资料中未找到相关内容", "sources": []}
 
     chunk_ids = [item["chunk_id"] for item in results]
     chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
@@ -165,38 +171,71 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             matched_results.append(item)
 
     if not matched_results:
-        return {"answer": "资料中未找到相关内容", "sources": []}
+        if forced_tool and tool_registry:
+            matched_results = []
+        else:
+            return {"answer": "资料中未找到相关内容", "sources": []}
 
-    context_parts = []
-    total_len = 0
-    for item in matched_results:
-        text = chunks_by_id.get(item["chunk_id"], "")
-        if not text:
-            continue
-        remaining = MAX_CONTEXT_LENGTH - total_len
-        if remaining <= 0:
-            break
-        snippet = text[:remaining]
-        context_parts.append(snippet)
-        total_len += len(snippet)
-        if total_len >= MAX_CONTEXT_LENGTH:
-            break
+    context = ""
+    if matched_results:
+        context_parts = []
+        total_len = 0
+        for item in matched_results:
+            text = chunks_by_id.get(item["chunk_id"], "")
+            if not text:
+                continue
+            remaining = MAX_CONTEXT_LENGTH - total_len
+            if remaining <= 0:
+                break
+            snippet = text[:remaining]
+            context_parts.append(snippet)
+            total_len += len(snippet)
+            if total_len >= MAX_CONTEXT_LENGTH:
+                break
+        context = "\n\n".join(context_parts).strip()
+        if not context:
+            return {"answer": "资料中未找到相关内容", "sources": []}
 
-    context = "\n\n".join(context_parts).strip()
-    if not context:
-        return {"answer": "资料中未找到相关内容", "sources": []}
-
+    tool_traces: list[dict] = []
+    tools = list(tool_registry.values())
     try:
-        answer = llm_client.generate_answer(request.query, context)
+        if tools:
+            answer, tool_traces = llm_client.generate_answer_with_tools(
+                request.query,
+                context,
+                tools,
+                settings.llm_tool_max_calls,
+                forced_tool=forced_tool,
+            )
+        else:
+            answer = llm_client.generate_answer(request.query, context)
     except Exception as exc:
         logger.warning("LLM generate failed in /chat, falling back to MockLLM: %s", exc)
-        answer = MockLLM().generate_answer(request.query, context)
+        fallback = MockLLM()
+        if tools:
+            answer, tool_traces = fallback.generate_answer_with_tools(
+                request.query,
+                context,
+                tools,
+                settings.llm_tool_max_calls,
+                forced_tool=forced_tool,
+            )
+        else:
+            answer = fallback.generate_answer(request.query, context)
     sources = [
         {"chunk_id": item["chunk_id"], "document_id": item["document_id"], "score": item["score"]}
         for item in matched_results
     ]
 
-    return {"answer": answer, "sources": sources}
+    return {"answer": answer, "sources": sources, "tool_traces": tool_traces}
+
+
+def _pick_forced_tool(query: str) -> str | None:
+    trimmed = (query or "").strip()
+    lowered = trimmed.lower()
+    if lowered.startswith("calc:") or trimmed.startswith("计算"):
+        return "calc"
+    return None
 
 
 @app.post("/sources/resolve", response_model=SourceResolveResponse)

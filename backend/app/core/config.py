@@ -23,6 +23,10 @@ class Settings:
     llm_timeout: float
     llm_max_tokens: int
     deepseek_api_key: str
+    llm_tools_enabled: bool
+    llm_tool_whitelist: str
+    llm_tool_max_calls: int
+    llm_tool_timeout: float
 
 
 def _build_database_url(
@@ -69,6 +73,10 @@ def load_settings() -> Settings:
     llm_timeout = float(os.getenv("LLM_TIMEOUT", "30"))
     llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "512"))
     deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    llm_tools_enabled = os.getenv("LLM_TOOLS_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+    llm_tool_whitelist = os.getenv("LLM_TOOL_WHITELIST", "calc")
+    llm_tool_max_calls = int(os.getenv("LLM_TOOL_MAX_CALLS", "2"))
+    llm_tool_timeout = float(os.getenv("LLM_TOOL_TIMEOUT", "5"))
 
     return Settings(
         mysql_host=mysql_host,
@@ -88,4 +96,8 @@ def load_settings() -> Settings:
         llm_timeout=llm_timeout,
         llm_max_tokens=llm_max_tokens,
         deepseek_api_key=deepseek_api_key,
+        llm_tools_enabled=llm_tools_enabled,
+        llm_tool_whitelist=llm_tool_whitelist,
+        llm_tool_max_calls=llm_tool_max_calls,
+        llm_tool_timeout=llm_tool_timeout,
     )
