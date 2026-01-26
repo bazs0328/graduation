@@ -396,7 +396,7 @@
 - 风险：题型字段变更导致渲染失败
 - 回滚：回退到上一版 UI 组件
 
-### [~] LLM-001 真实 LLM/Embedding 可配置切换
+### [x] LLM-001 真实 LLM/Embedding 可配置切换
 **目标**
 提供可切换的真实 LLM/Embedding 接入，同时保留 Mock/Hash 兜底。
 
