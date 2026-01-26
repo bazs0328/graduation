@@ -10,6 +10,7 @@ export default function ChatPage({ sessionId }) {
   const [sourceItems, setSourceItems] = useState([]);
   const [sourceStatus, setSourceStatus] = useState('');
   const [sourceError, setSourceError] = useState(null);
+  const [showTools, setShowTools] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -23,6 +24,7 @@ export default function ChatPage({ sessionId }) {
     setSourceItems([]);
     setSourceStatus('');
     setSourceError(null);
+    setShowTools(false);
     try {
       const result = await chat(query.trim(), Number(topK), sessionId);
       setAnswer(result);
@@ -89,6 +91,44 @@ export default function ChatPage({ sessionId }) {
         {answer ? (
           <>
             <p className="answer">{answer.answer}</p>
+            {answer.tool_traces?.length ? (
+              <div className="tools">
+                <div className="tool-header">
+                  <p className="label">工具轨迹</p>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => setShowTools((prev) => !prev)}
+                  >
+                    {showTools ? '收起' : '展开'}
+                  </button>
+                </div>
+                {showTools && (
+                  <div className="tool-list">
+                    {answer.tool_traces.map((trace, index) => (
+                      <div className="tool-item" key={`${trace.tool_name}-${index}`}>
+                        <div className="tool-meta">
+                          <span className="badge">{trace.tool_name}</span>
+                          {typeof trace.duration_ms === 'number' && (
+                            <span className="badge">{trace.duration_ms}ms</span>
+                          )}
+                        </div>
+                        <p className="tool-content">
+                          输入：{JSON.stringify(trace.input ?? {})}
+                        </p>
+                        {trace.error ? (
+                          <p className="alert error">错误：{trace.error}</p>
+                        ) : (
+                          <p className="tool-content">
+                            输出：{trace.output ?? '无输出'}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
             {answer.sources?.length ? (
               <div className="sources">
                 <p className="label">引用来源</p>
