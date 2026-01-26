@@ -86,6 +86,17 @@ export function getProfile(sessionId) {
   return request('/profile/me', { method: 'GET' }, sessionId);
 }
 
+export function resolveSources(payload, sessionId) {
+  return request(
+    '/sources/resolve',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    sessionId,
+  );
+}
+
 export function getApiBaseUrl() {
   return API_BASE_URL;
 }

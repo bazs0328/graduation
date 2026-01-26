@@ -81,6 +81,26 @@ curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d
 curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
 ```
 
+### Sources resolve (citation metadata)
+
+Resolve chunk ids to document name + text preview:
+
+```
+curl -X POST http://localhost:8000/sources/resolve -H "Content-Type: application/json" -d '{"chunk_ids":[1,2],"preview_len":120}'
+```
+
+Response example:
+
+```
+{"items":[{"chunk_id":1,"document_id":1,"document_name":"sample.md","text_preview":"# Sample Markdown This is a small sample file..."}],"missing_chunk_ids":[]}
+```
+
+Error (example):
+
+```
+{"code":404,"message":"Sources not found","details":{"missing_chunk_ids":[999]}}
+```
+
 ### Quiz generate (Phase 2 Easy-only)
 
 ```

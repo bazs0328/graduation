@@ -12,12 +12,14 @@ from app.db.session import get_db
 from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
+from app.schemas.source import SourceResolveRequest, SourceResolveResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.index_manager import IndexManager
 from app.services.llm.mock import MockLLM
 from app.services.provider_factory import build_embedder, build_llm_client
 from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
+from app.services.source_service import SourceResolveError, resolve_sources
 from .settings import load_settings
 
 def _load_cors_origins() -> list[str]:
@@ -193,6 +195,21 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     ]
 
     return {"answer": answer, "sources": sources}
+
+
+@app.post("/sources/resolve", response_model=SourceResolveResponse)
+def resolve_source_chunks(
+    request: SourceResolveRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        items, missing = resolve_sources(db, request.chunk_ids, request.preview_len)
+        return {"items": items, "missing_chunk_ids": missing}
+    except SourceResolveError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )
 
 
 def get_session_id(x_session_id: str | None = Header(default=None)) -> str:
