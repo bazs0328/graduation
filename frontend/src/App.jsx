@@ -7,6 +7,7 @@ import UploadPage from './pages/UploadPage';
 import IndexPage from './pages/IndexPage';
 import ChatPage from './pages/ChatPage';
 import QuizPage from './pages/QuizPage';
+import LearningPathPage from './pages/LearningPath';
 import ProfilePage from './pages/ProfilePage';
 
 const navItems = [
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/index', label: '索引' },
   { to: '/chat', label: '问答' },
   { to: '/quiz', label: '测验' },
+  { to: '/learning', label: '学习路径' },
   { to: '/profile', label: '画像' },
 ];
 
@@ -79,6 +81,10 @@ function App() {
             <Route
               path="/quiz"
               element={<QuizPage sessionId={sessionId} documentId={documentId} />}
+            />
+            <Route
+              path="/learning"
+              element={<LearningPathPage sessionId={sessionId} />}
             />
             <Route
               path="/profile"

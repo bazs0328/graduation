@@ -203,9 +203,11 @@ Notes:
 3) Ask a question
 4) Generate + submit a quiz
 5) Load profile
+6) View learning path
 
 Notes:
 - 测验提交后展示得分/准确率/逐题结果、难度计划与推荐信息（来源 /profile/me）。
+- 学习路径基于 /profile/me 的 weak_concepts 与 last_quiz_summary 规则生成。
 
 ### Phase 2 验收（端到端）
 
