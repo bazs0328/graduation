@@ -1,27 +1,14 @@
 import { useMemo, useState } from 'react';
-import { generateQuiz, submitQuiz } from '../lib/api';
+import { generateQuiz, getProfile, submitQuiz } from '../lib/api';
+import { DIFFICULTY_LABELS, TYPE_LABELS } from '../lib/quizFormat';
+import QuizQuestion from '../components/QuizQuestion';
+import QuizResult from '../components/QuizResult';
 
 const DEFAULT_TYPES = {
   single: true,
   judge: true,
   short: true,
 };
-
-const TYPE_LABELS = {
-  single: '单选',
-  judge: '判断',
-  short: '简答',
-};
-
-const DIFFICULTY_LABELS = {
-  Easy: '易',
-  Medium: '中',
-  Hard: '难',
-};
-
-function letterForIndex(index) {
-  return String.fromCharCode(65 + index);
-}
 
 export default function QuizPage({ sessionId, documentId }) {
   const [docId, setDocId] = useState(documentId || '');
@@ -31,6 +18,10 @@ export default function QuizPage({ sessionId, documentId }) {
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
   const [submitResult, setSubmitResult] = useState(null);
+  const [showResult, setShowResult] = useState(false);
+  const [profileSummary, setProfileSummary] = useState(null);
+  const [profileStatus, setProfileStatus] = useState('');
+  const [profileError, setProfileError] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState(null);
 
@@ -43,6 +34,9 @@ export default function QuizPage({ sessionId, documentId }) {
     setStatus('正在生成测验...');
     setError(null);
     setSubmitResult(null);
+    setShowResult(false);
+    setProfileSummary(null);
+    setProfileError(null);
     try {
       const payload = {
         count: Number(count) || 5,
@@ -76,6 +70,8 @@ export default function QuizPage({ sessionId, documentId }) {
     }
     setStatus('正在提交测验...');
     setError(null);
+    setProfileError(null);
+    setProfileStatus('');
     try {
       const payload = {
         quiz_id: quiz.quiz_id,
@@ -98,15 +94,33 @@ export default function QuizPage({ sessionId, documentId }) {
       const result = await submitQuiz(payload, sessionId);
       setSubmitResult(result);
       setStatus('');
+      setShowResult(true);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       setError(err);
       setStatus('');
+      return;
+    }
+
+    setProfileStatus('正在同步画像推荐...');
+    try {
+      const profile = await getProfile(sessionId);
+      setProfileSummary(profile?.last_quiz_summary || null);
+      setProfileStatus('');
+    } catch (err) {
+      setProfileError(err);
+      setProfileStatus('');
     }
   };
 
   const updateAnswer = (questionId, value) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
+
+  const openResult = () => setShowResult(true);
+  const closeResult = () => setShowResult(false);
 
   return (
     <section className="page">
@@ -117,6 +131,23 @@ export default function QuizPage({ sessionId, documentId }) {
           <p className="subtle">在同一页面完成生成与提交。</p>
         </div>
       </div>
+
+      {submitResult && (
+        <div className="result-jump">
+          <div>
+            <p className="label">测验已提交</p>
+            {profileStatus && <p className="subtle">{profileStatus}</p>}
+            {profileError && (
+              <p className="subtle">
+                推荐信息加载失败：{profileError.message}
+              </p>
+            )}
+          </div>
+          <button className="secondary" type="button" onClick={openResult}>
+            查看结果
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <div className="form-grid">
@@ -170,9 +201,18 @@ export default function QuizPage({ sessionId, documentId }) {
         <p className="status">{status}</p>
         {error && <p className="alert error">{error.message}</p>}
         {quiz && (
-          <pre className="code-block">
-            {JSON.stringify(quiz.difficulty_plan, null, 2)}
-          </pre>
+          <div className="plan-panel">
+            <p className="label">难度计划</p>
+            <div className="inline plan-badges">
+              {Object.entries(quiz.difficulty_plan || {}).map(
+                ([level, value]) => (
+                  <span className="badge" key={level}>
+                    {DIFFICULTY_LABELS[level] || level} {value}
+                  </span>
+                ),
+              )}
+            </div>
+          </div>
         )}
       </div>
 
@@ -181,81 +221,13 @@ export default function QuizPage({ sessionId, documentId }) {
           <h2>题目</h2>
           <div className="question-list">
             {quiz.questions.map((question, index) => (
-              <div className="question" key={question.question_id}>
-                <div className="question-meta">
-                  <span className="badge">
-                    {TYPE_LABELS[question.type] || question.type}
-                  </span>
-                  <span className="badge">
-                    {DIFFICULTY_LABELS[question.difficulty] ||
-                      question.difficulty}
-                  </span>
-                </div>
-                <p className="question-title">
-                  {index + 1}. {question.stem}
-                </p>
-                {question.options?.length ? (
-                  <div className="options">
-                    {question.options.map((option, optionIndex) => {
-                      const letter = letterForIndex(optionIndex);
-                      return (
-                        <label className="option" key={letter}>
-                          <input
-                            type="radio"
-                            name={`q-${question.question_id}`}
-                            value={letter}
-                            checked={answers[question.question_id] === letter}
-                            onChange={() =>
-                              updateAnswer(question.question_id, letter)
-                            }
-                          />
-                          <span>
-                            {letter}. {option}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ) : null}
-                {question.type === 'judge' && (
-                  <div className="options">
-                    <label className="option">
-                      <input
-                        type="radio"
-                        name={`q-${question.question_id}`}
-                        checked={answers[question.question_id] === true}
-                        onChange={() => updateAnswer(question.question_id, true)}
-                      />
-                      <span>正确</span>
-                    </label>
-                    <label className="option">
-                      <input
-                        type="radio"
-                        name={`q-${question.question_id}`}
-                        checked={answers[question.question_id] === false}
-                        onChange={() => updateAnswer(question.question_id, false)}
-                      />
-                      <span>错误</span>
-                    </label>
-                  </div>
-                )}
-                {question.type === 'short' && (
-                  <label className="field">
-                    <span>你的回答</span>
-                    <textarea
-                      className="input"
-                      rows="3"
-                      value={answers[question.question_id] || ''}
-                      onChange={(event) =>
-                        updateAnswer(question.question_id, event.target.value)
-                      }
-                    />
-                  </label>
-                )}
-                {question.explanation && (
-                  <p className="subtle">解析：{question.explanation}</p>
-                )}
-              </div>
+              <QuizQuestion
+                key={question.question_id}
+                question={question}
+                index={index}
+                value={answers[question.question_id]}
+                onChange={updateAnswer}
+              />
             ))}
           </div>
           <button className="primary" type="button" onClick={handleSubmit}>
@@ -264,26 +236,27 @@ export default function QuizPage({ sessionId, documentId }) {
         </div>
       )}
 
-      {submitResult && (
-        <div className="card">
-          <h2>结果</h2>
-          <div className="grid-3">
-            <div>
-              <p className="label">得分</p>
-              <p className="metric">{submitResult.score}</p>
+      {submitResult && showResult && (
+        <div
+          className="overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeResult}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2>测验结果</h2>
+              <button className="ghost" type="button" onClick={closeResult}>
+                关闭
+              </button>
             </div>
-            <div>
-              <p className="label">准确率</p>
-              <p className="metric">{submitResult.accuracy}</p>
-            </div>
-            <div>
-              <p className="label">反馈</p>
-              <p className="subtle">{submitResult.feedback_text}</p>
-            </div>
+            <QuizResult
+              quiz={quiz}
+              result={submitResult}
+              summary={profileSummary}
+              showTitle={false}
+            />
           </div>
-          <pre className="code-block">
-            {JSON.stringify(submitResult.per_question_result, null, 2)}
-          </pre>
         </div>
       )}
     </section>

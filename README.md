@@ -165,6 +165,9 @@ Notes:
 4) Generate + submit a quiz
 5) Load profile
 
+Notes:
+- 测验提交后展示得分/准确率/逐题结果、难度计划与推荐信息（来源 /profile/me）。
+
 ### Phase 2 验收（端到端）
 
 ```
