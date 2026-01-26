@@ -16,7 +16,7 @@ function getCorrectMeta(value) {
   return { label: '未评分', className: 'result-badge pending' };
 }
 
-export default function QuizResult({ quiz, result, summary }) {
+export default function QuizResult({ quiz, result, summary, showTitle = true }) {
   if (!result) {
     return null;
   }
@@ -31,7 +31,7 @@ export default function QuizResult({ quiz, result, summary }) {
 
   return (
     <div className="card">
-      <h2>结果</h2>
+      {showTitle && <h2>结果</h2>}
       <div className="grid-3">
         <div>
           <p className="label">得分</p>

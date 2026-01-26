@@ -18,6 +18,7 @@ export default function QuizPage({ sessionId, documentId }) {
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
   const [submitResult, setSubmitResult] = useState(null);
+  const [showResult, setShowResult] = useState(false);
   const [profileSummary, setProfileSummary] = useState(null);
   const [profileStatus, setProfileStatus] = useState('');
   const [profileError, setProfileError] = useState(null);
@@ -33,6 +34,7 @@ export default function QuizPage({ sessionId, documentId }) {
     setStatus('正在生成测验...');
     setError(null);
     setSubmitResult(null);
+    setShowResult(false);
     setProfileSummary(null);
     setProfileError(null);
     try {
@@ -92,6 +94,10 @@ export default function QuizPage({ sessionId, documentId }) {
       const result = await submitQuiz(payload, sessionId);
       setSubmitResult(result);
       setStatus('');
+      setShowResult(true);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       setError(err);
       setStatus('');
@@ -113,6 +119,9 @@ export default function QuizPage({ sessionId, documentId }) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
+  const openResult = () => setShowResult(true);
+  const closeResult = () => setShowResult(false);
+
   return (
     <section className="page">
       <div className="page-header">
@@ -122,6 +131,23 @@ export default function QuizPage({ sessionId, documentId }) {
           <p className="subtle">在同一页面完成生成与提交。</p>
         </div>
       </div>
+
+      {submitResult && (
+        <div className="result-jump">
+          <div>
+            <p className="label">测验已提交</p>
+            {profileStatus && <p className="subtle">{profileStatus}</p>}
+            {profileError && (
+              <p className="subtle">
+                推荐信息加载失败：{profileError.message}
+              </p>
+            )}
+          </div>
+          <button className="secondary" type="button" onClick={openResult}>
+            查看结果
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <div className="form-grid">
@@ -210,14 +236,28 @@ export default function QuizPage({ sessionId, documentId }) {
         </div>
       )}
 
-      {submitResult && profileStatus && <p className="status">{profileStatus}</p>}
-      {submitResult && profileError && (
-        <p className="alert error">
-          推荐信息加载失败：{profileError.message}
-        </p>
-      )}
-      {submitResult && (
-        <QuizResult quiz={quiz} result={submitResult} summary={profileSummary} />
+      {submitResult && showResult && (
+        <div
+          className="overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeResult}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2>测验结果</h2>
+              <button className="ghost" type="button" onClick={closeResult}>
+                关闭
+              </button>
+            </div>
+            <QuizResult
+              quiz={quiz}
+              result={submitResult}
+              summary={profileSummary}
+              showTitle={false}
+            />
+          </div>
+        </div>
       )}
     </section>
   );

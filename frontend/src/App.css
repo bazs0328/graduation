@@ -306,6 +306,72 @@ textarea.input {
   background: #fff;
 }
 
+.secondary {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.result-jump {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 10, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 32px 20px;
+  overflow: auto;
+  z-index: 40;
+}
+
+.modal-card {
+  width: min(960px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-card .card {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .plan-panel {
   margin-top: 12px;
   display: grid;
@@ -391,5 +457,10 @@ textarea.input {
 
   .container {
     padding: 20px;
+  }
+
+  .result-jump {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
