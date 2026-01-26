@@ -371,7 +371,7 @@
 - 风险：引入新依赖/构建工具
 - 回滚：移除 frontend 目录并还原 README 变更
 
-### [~] FE-002 前端测验答题与结果展示
+### [x] FE-002 前端测验答题与结果展示
 **目标**
 在前端完成题目渲染、答题、提交与结果展示。
 
@@ -383,6 +383,11 @@
 **验收**
 - 前端完成一次测验并展示结果/推荐
 - 与 /quiz/submit 返回一致
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- cd frontend && npm run lint
+- cd frontend && npm run build
 
 **依赖**
 - FE-001 完成
