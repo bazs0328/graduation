@@ -250,21 +250,12 @@ class DocSummaryRequest(BaseModel):
     force: bool = False
 
 
-class DocSummaryTrace(BaseModel):
-    prompt: str
-    raw_output: str
-    keyword_raw_output: str
-    used_fallback: bool
-    fallback_reason: str
-
-
 class DocSummaryResponse(BaseModel):
     document_id: int
     summary: str
     keywords: list[str]
     questions: list[str]
     cached: bool
-    debug: DocSummaryTrace | None = None
 
 
 def _error_response(status: int, code: str, message: str, details: dict | None = None) -> JSONResponse:
@@ -279,7 +270,6 @@ def generate_doc_summary(
     doc_id: int,
     payload: DocSummaryRequest,
     db: Session = Depends(get_db),
-    debug: bool = Query(False),
 ):
     document = db.query(Document).filter(Document.id == doc_id).first()
     if not document:
@@ -294,15 +284,6 @@ def generate_doc_summary(
                 keywords=cached["keywords"],
                 questions=cached["questions"],
                 cached=True,
-                debug=DocSummaryTrace(
-                    prompt="",
-                    raw_output="",
-                    keyword_raw_output="",
-                    used_fallback=False,
-                    fallback_reason="cached",
-                )
-                if debug
-                else None,
             )
 
     chunks = (
@@ -330,15 +311,6 @@ def generate_doc_summary(
         keywords=result.keywords,
         questions=result.questions,
         cached=False,
-        debug=DocSummaryTrace(
-            prompt=trace.prompt,
-            raw_output=trace.raw_output,
-            keyword_raw_output=trace.keyword_raw_output,
-            used_fallback=trace.used_fallback,
-            fallback_reason=trace.fallback_reason,
-        )
-        if debug
-        else None,
     )
 
 
