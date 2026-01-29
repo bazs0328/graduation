@@ -360,6 +360,10 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 }
 
     results = index_manager.search(request.query, request.top_k, db, request.document_id)
+    doc_fallback_used = False
+    if not results and request.document_id:
+        results = _fallback_doc_results(request.document_id, request.query, request.top_k, db)
+        doc_fallback_used = bool(results)
     if not results:
         if forced_tool and tool_registry:
             results = []
@@ -455,7 +459,12 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         for item in matched_results
     ]
 
-    retrieval_reason = "exact_match" if match_mode == "exact" else "semantic_fallback"
+    if doc_fallback_used:
+        retrieval_reason = (
+            "doc_filter_fallback_exact" if match_mode == "exact" else "doc_filter_fallback_semantic"
+        )
+    else:
+        retrieval_reason = "exact_match" if match_mode == "exact" else "semantic_fallback"
     return {
         "answer": answer,
         "sources": sources,
@@ -474,6 +483,45 @@ def _pick_forced_tool(query: str) -> str | None:
     if lowered.startswith("calc:") or trimmed.startswith("计算"):
         return "calc"
     return None
+
+
+def _fallback_doc_results(
+    document_id: int,
+    query: str,
+    top_k: int,
+    db: Session,
+) -> list[dict]:
+    query_tokens = _tokenize_query(query)
+    if not query_tokens:
+        return []
+    chunks = (
+        db.query(Chunk)
+        .filter(Chunk.document_id == document_id)
+        .order_by(Chunk.chunk_index.asc())
+        .all()
+    )
+    scored: list[tuple[float, Chunk]] = []
+    for chunk in chunks:
+        text = chunk.text or ""
+        score = _match_score(query_tokens, text)
+        if score > 0:
+            scored.append((score, chunk))
+    if not scored:
+        return []
+    scored.sort(key=lambda item: item[0], reverse=True)
+    results: list[dict] = []
+    for score, chunk in scored[:top_k]:
+        preview = (chunk.text or "")[:200]
+        results.append(
+            {
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "score": score,
+                "text_preview": preview,
+                "metadata": chunk.metadata_json,
+            }
+        )
+    return results
 
 
 def _extract_calc_expression(query: str) -> str | None:
