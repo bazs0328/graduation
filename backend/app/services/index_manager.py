@@ -128,4 +128,38 @@ class IndexManager:
                 }
             )
 
-        return results
+        if len(results) <= 1:
+            return results
+
+        # Diversify across documents: keep early hits, but avoid single-doc dominance.
+        per_doc_cap = max(1, min(2, top_k))
+        by_doc: Dict[int, List[Dict[str, Any]]] = {}
+        for item in results:
+            by_doc.setdefault(item["document_id"], []).append(item)
+
+        diversified: List[Dict[str, Any]] = []
+        # First pass: take one from each document in rank order.
+        seen_docs: set[int] = set()
+        for item in results:
+            doc_id = item["document_id"]
+            if doc_id in seen_docs:
+                continue
+            diversified.append(item)
+            seen_docs.add(doc_id)
+            if len(diversified) >= top_k:
+                return diversified
+
+        # Second pass: fill remaining slots respecting per-doc cap.
+        doc_counts = {item["document_id"]: 1 for item in diversified}
+        for item in results:
+            doc_id = item["document_id"]
+            if doc_counts.get(doc_id, 0) >= per_doc_cap:
+                continue
+            if item in diversified:
+                continue
+            diversified.append(item)
+            doc_counts[doc_id] = doc_counts.get(doc_id, 0) + 1
+            if len(diversified) >= top_k:
+                break
+
+        return diversified
