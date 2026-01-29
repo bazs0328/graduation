@@ -40,7 +40,7 @@ from app.services.research_service import (
     list_research_sessions,
 )
 from app.services.source_service import SourceResolveError, resolve_sources
-from app.services.tools import build_tool_registry
+from app.services.tools import ToolRunError, build_tool_registry
 from .settings import load_settings
 
 def _load_cors_origins() -> list[str]:
@@ -320,6 +320,43 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Index not built. Call POST /index/rebuild first.")
 
     forced_tool = _pick_forced_tool(request.query)
+    if forced_tool and tool_registry and forced_tool in tool_registry:
+        tool = tool_registry[forced_tool]
+        expr = _extract_calc_expression(request.query) if forced_tool == "calc" else None
+        if expr:
+            try:
+                output = tool.run({"expression": expr})
+                return {
+                    "answer": f"计算结果：{output}",
+                    "sources": [],
+                    "tool_traces": [
+                        {"tool_name": forced_tool, "input": {"expression": expr}, "output": output, "error": None}
+                    ],
+                    "retrieval": {
+                        "mode": "exact",
+                        "reason": "forced_tool",
+                        "suggestions": _build_suggestions(request.query),
+                    },
+                }
+            except ToolRunError as exc:
+                return {
+                    "answer": f"计算失败：{exc}",
+                    "sources": [],
+                    "tool_traces": [
+                        {
+                            "tool_name": forced_tool,
+                            "input": {"expression": expr},
+                            "output": None,
+                            "error": str(exc),
+                        }
+                    ],
+                    "retrieval": {
+                        "mode": "exact",
+                        "reason": "forced_tool",
+                        "suggestions": _build_suggestions(request.query),
+                    },
+                }
+
     results = index_manager.search(request.query, request.top_k, db)
     if not results:
         if forced_tool and tool_registry:
@@ -434,6 +471,18 @@ def _pick_forced_tool(query: str) -> str | None:
     lowered = trimmed.lower()
     if lowered.startswith("calc:") or trimmed.startswith("计算"):
         return "calc"
+    return None
+
+
+def _extract_calc_expression(query: str) -> str | None:
+    if not query:
+        return None
+    trimmed = query.strip()
+    lowered = trimmed.lower()
+    if lowered.startswith("calc:"):
+        return trimmed.split(":", 1)[1].strip()
+    if trimmed.startswith("计算"):
+        return trimmed[2:].strip()
     return None
 
 

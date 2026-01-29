@@ -14,6 +14,18 @@ DEFAULT_QUESTIONS = [
     "有哪些关键概念需要优先理解？",
     "我应该先从哪一部分开始学习？",
 ]
+STOPWORDS = {
+    "资料",
+    "内容",
+    "部分",
+    "问题",
+    "一个",
+    "这份",
+    "这些",
+    "可以",
+    "主要",
+    "包括",
+}
 
 
 @dataclass
@@ -76,7 +88,7 @@ def build_summary_prompt() -> str:
         "你是学习资料助手。请基于给定资料生成摘要。\n"
         "严格要求：\n"
         "1) 只输出 JSON，不要任何额外文字。\n"
-        "2) summary：3-5 句中文总结。\n"
+        "2) summary：3-5 句中文总结（不要逐句复述原文，避免照搬原句）。\n"
         "3) keywords：5-8 个中文关键词。\n"
         "4) questions：3-5 个可直接提问的问题。\n"
         "5) 全部内容必须为中文。\n"
@@ -138,11 +150,19 @@ def _normalize_list(value) -> list[str]:
 
 
 def _fallback_summary(context: str, raw: str) -> SummaryResult:
-    summary = _summarize_from_context(context)
-    if not summary or not _contains_cjk(summary):
-        summary = "该资料主要为非中文内容，已生成通用中文摘要。建议用中文关键词提问，或补充中文资料以获得更精确的总结。"
-    keywords = DEFAULT_KEYWORDS[:]
-    questions = DEFAULT_QUESTIONS[:3]
+    title = _extract_title(context)
+    list_items = _extract_list_items(context)
+    cjk_keywords = _extract_cjk_keywords(context)
+    latin_keywords = _extract_latin_keywords(context)
+
+    if _contains_cjk(context):
+        keywords = cjk_keywords or DEFAULT_KEYWORDS[:]
+        summary = _build_structured_summary(title, list_items, keywords, [], is_cjk=True)
+    else:
+        keywords = cjk_keywords or ["英文资料", "标题", "结构", "列表", "要点"]
+        summary = _build_structured_summary(title, list_items, keywords, latin_keywords, is_cjk=False)
+
+    questions = _build_questions(keywords)
     return SummaryResult(summary=summary, keywords=keywords, questions=questions)
 
 
@@ -160,3 +180,87 @@ def _summarize_from_context(context: str) -> str:
 
 def _contains_cjk(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _extract_title(context: str) -> str:
+    for line in context.splitlines():
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        if cleaned.startswith("#"):
+            return cleaned.lstrip("#").strip()[:60]
+        return cleaned[:60]
+    return ""
+
+
+def _extract_list_items(context: str) -> list[str]:
+    items: list[str] = []
+    for line in context.splitlines():
+        cleaned = line.strip()
+        if cleaned.startswith(("-", "*", "•")):
+            item = cleaned.lstrip("-*•").strip()
+            if item:
+                items.append(item[:80])
+    return items
+
+
+def _extract_cjk_keywords(context: str, limit: int = 6) -> list[str]:
+    words = re.findall(r"[\u4e00-\u9fff]{2,6}", context)
+    counts: dict[str, int] = {}
+    for word in words:
+        if word in STOPWORDS:
+            continue
+        counts[word] = counts.get(word, 0) + 1
+    sorted_words = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    return [word for word, _ in sorted_words[:limit]]
+
+
+def _extract_latin_keywords(context: str, limit: int = 5) -> list[str]:
+    words = re.findall(r"[A-Za-z][A-Za-z\\-]{2,}", context)
+    counts: dict[str, int] = {}
+    for word in words:
+        lowered = word.lower()
+        if lowered in {"the", "and", "with", "this", "that", "over", "from", "into"}:
+            continue
+        counts[lowered] = counts.get(lowered, 0) + 1
+    sorted_words = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    return [word for word, _ in sorted_words[:limit]]
+
+
+def _build_structured_summary(
+    title: str,
+    list_items: list[str],
+    keywords: list[str],
+    latin_keywords: list[str],
+    is_cjk: bool,
+) -> str:
+    title_part = f"主题为《{title}》。" if title else "主题为未命名资料。"
+    list_part = ""
+    if list_items:
+        list_count = len(list_items)
+        preview = "、".join(list_items[:3])
+        list_part = f"包含 {list_count} 个列表要点（如：{preview}）。"
+    keyword_part = ""
+    if keywords:
+        keyword_part = f"关键词侧重：{'、'.join(keywords[:3])}。"
+    latin_part = ""
+    if latin_keywords:
+        latin_part = f"常见英文关键词：{'、'.join(latin_keywords[:3])}。"
+    if not is_cjk:
+        return (
+            f"该资料主要为英文内容，{title_part}"
+            f"{list_part}{latin_part}建议先理解主题结构，再结合中文关键词提问以获得更准确回答。"
+        )
+    return f"该资料{title_part}{list_part}{keyword_part}".strip()
+
+
+def _build_questions(keywords: list[str]) -> list[str]:
+    base = DEFAULT_QUESTIONS[:3]
+    if not keywords:
+        return base
+    topic = keywords[0]
+    return [
+        f"请概括“{topic}”在资料中的核心要点。",
+        f"“{topic}”相关的关键结论有哪些？",
+        "这份资料最值得优先掌握的内容是什么？",
+    ]
