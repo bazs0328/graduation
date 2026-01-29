@@ -250,12 +250,20 @@ class DocSummaryRequest(BaseModel):
     force: bool = False
 
 
+class DocSummaryTrace(BaseModel):
+    prompt: str
+    raw_output: str
+    used_fallback: bool
+    fallback_reason: str
+
+
 class DocSummaryResponse(BaseModel):
     document_id: int
     summary: str
     keywords: list[str]
     questions: list[str]
     cached: bool
+    debug: DocSummaryTrace | None = None
 
 
 def _error_response(status: int, code: str, message: str, details: dict | None = None) -> JSONResponse:
@@ -270,6 +278,7 @@ def generate_doc_summary(
     doc_id: int,
     payload: DocSummaryRequest,
     db: Session = Depends(get_db),
+    debug: bool = Query(False),
 ):
     document = db.query(Document).filter(Document.id == doc_id).first()
     if not document:
@@ -284,6 +293,14 @@ def generate_doc_summary(
                 keywords=cached["keywords"],
                 questions=cached["questions"],
                 cached=True,
+                debug=DocSummaryTrace(
+                    prompt="",
+                    raw_output="",
+                    used_fallback=False,
+                    fallback_reason="cached",
+                )
+                if debug
+                else None,
             )
 
     chunks = (
@@ -300,10 +317,10 @@ def generate_doc_summary(
         return _error_response(409, "DOC_EMPTY", "Document has no usable content", {"document_id": doc_id})
 
     try:
-        result: SummaryResult = generate_summary(llm_client, context)
+        result, trace = generate_summary(llm_client, context)
     except Exception as exc:
         logger.warning("LLM summary failed, falling back to MockLLM: %s", exc)
-        result = generate_summary(MockLLM(), context)
+        result, trace = generate_summary(MockLLM(), context)
     summary_cache.set(doc_id, result)
     return DocSummaryResponse(
         document_id=doc_id,
@@ -311,6 +328,14 @@ def generate_doc_summary(
         keywords=result.keywords,
         questions=result.questions,
         cached=False,
+        debug=DocSummaryTrace(
+            prompt=trace.prompt,
+            raw_output=trace.raw_output,
+            used_fallback=trace.used_fallback,
+            fallback_reason=trace.fallback_reason,
+        )
+        if debug
+        else None,
     )
 
 

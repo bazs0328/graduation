@@ -73,6 +73,14 @@ Response example:
 {"document_id":1,"summary":"...","keywords":["..."],"questions":["..."],"cached":false}
 ```
 
+Debug trace (prompt + raw output + fallback):
+
+```
+curl -X POST "http://localhost:8000/docs/{id}/summary?debug=1" \
+  -H "Content-Type: application/json" \
+  -d '{"force": true}'
+```
+
 Error example (no chunks / empty doc):
 
 ```

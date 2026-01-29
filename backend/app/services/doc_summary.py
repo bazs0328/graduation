@@ -25,6 +25,9 @@ STOPWORDS = {
     "可以",
     "主要",
     "包括",
+    "知道",
+    "因此",
+    "所以",
 }
 
 
@@ -33,6 +36,14 @@ class SummaryResult:
     summary: str
     keywords: list[str]
     questions: list[str]
+
+
+@dataclass
+class SummaryTrace:
+    prompt: str
+    raw_output: str
+    used_fallback: bool
+    fallback_reason: str
 
 
 class SummaryCache:
@@ -101,13 +112,29 @@ def build_summary_prompt() -> str:
     )
 
 
-def generate_summary(llm_client: LLMClient, context: str) -> SummaryResult:
+def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult, SummaryTrace]:
     prompt = build_summary_prompt()
     response = llm_client.generate_answer(prompt, context)
     parsed = _parse_summary_response(response)
     if parsed and _contains_cjk(parsed.summary) and not _looks_like_verbatim(parsed.summary, context):
-        return parsed
-    return _fallback_summary(context, response)
+        trace = SummaryTrace(
+            prompt=prompt,
+            raw_output=response or "",
+            used_fallback=False,
+            fallback_reason="",
+        )
+        return parsed, trace
+    fallback = _fallback_summary(context, response)
+    reason = "parse_failed"
+    if parsed and _looks_like_verbatim(parsed.summary, context):
+        reason = "verbatim_detected"
+    trace = SummaryTrace(
+        prompt=prompt,
+        raw_output=response or "",
+        used_fallback=True,
+        fallback_reason=reason,
+    )
+    return fallback, trace
 
 
 def _parse_summary_response(raw: str) -> SummaryResult | None:
@@ -157,10 +184,29 @@ def _fallback_summary(context: str, raw: str) -> SummaryResult:
 
     if _contains_cjk(context):
         keywords = cjk_keywords or DEFAULT_KEYWORDS[:]
-        summary = _build_structured_summary(title, list_items, keywords, [], is_cjk=True)
+        if _has_markers(context):
+            summary_source = context
+        else:
+            summary_source = raw if _contains_cjk(raw) else context
+        key_points = _select_key_sentences(summary_source, max_sentences=4)
+        summary = _build_structured_summary(
+            title,
+            list_items,
+            keywords,
+            [],
+            is_cjk=True,
+            key_points=key_points,
+        )
     else:
         keywords = cjk_keywords or ["英文资料", "标题", "结构", "列表", "要点"]
-        summary = _build_structured_summary(title, list_items, keywords, latin_keywords, is_cjk=False)
+        summary = _build_structured_summary(
+            title,
+            list_items,
+            keywords,
+            latin_keywords,
+            is_cjk=False,
+            key_points=[],
+        )
 
     questions = _build_questions(keywords)
     return SummaryResult(summary=summary, keywords=keywords, questions=questions)
@@ -199,8 +245,10 @@ def _extract_title(context: str) -> str:
         if not cleaned:
             continue
         if cleaned.startswith("#"):
-            return cleaned.lstrip("#").strip()[:60]
-        return cleaned[:60]
+            return cleaned.lstrip("#").strip()[:30]
+        if len(cleaned) > 20:
+            return ""
+        return cleaned[:30]
     return ""
 
 
@@ -244,6 +292,7 @@ def _build_structured_summary(
     keywords: list[str],
     latin_keywords: list[str],
     is_cjk: bool,
+    key_points: list[str],
 ) -> str:
     title_part = f"主题为《{title}》。" if title else "主题为未命名资料。"
     list_part = ""
@@ -262,7 +311,11 @@ def _build_structured_summary(
             f"该资料主要为英文内容，{title_part}"
             f"{list_part}{latin_part}建议先理解主题结构，再结合中文关键词提问以获得更准确回答。"
         )
-    return f"该资料{title_part}{list_part}{keyword_part}".strip()
+    key_part = ""
+    if key_points:
+        key_part = "要点："
+        key_part += "；".join(key_points) + "。"
+    return f"该资料{title_part}{list_part}{key_part}{keyword_part}".strip()
 
 
 def _build_questions(keywords: list[str]) -> list[str]:
@@ -275,3 +328,41 @@ def _build_questions(keywords: list[str]) -> list[str]:
         f"“{topic}”相关的关键结论有哪些？",
         "这份资料最值得优先掌握的内容是什么？",
     ]
+
+
+def _select_key_sentences(text: str, max_sentences: int = 4) -> list[str]:
+    if not text:
+        return []
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    cleaned = cleaned.replace("根据资料：", "").strip()
+    parts = [part.strip() for part in re.split(r"[。！？!?;；]+", cleaned) if part.strip()]
+    if not parts:
+        return []
+    selected: list[str] = []
+    markers = ("但是", "然而", "其实", "结果", "后来", "最后", "因此", "所以", "吓得", "逃")
+    for part in parts:
+        if any(marker in part for marker in markers):
+            selected.append(part)
+    if parts and parts[0] not in selected:
+        selected.insert(0, parts[0])
+    if parts and parts[-1] not in selected:
+        selected.append(parts[-1])
+    # Keep order and uniqueness
+    seen = set()
+    ordered = []
+    for part in selected:
+        if part in seen:
+            continue
+        part = part[:80]
+        seen.add(part)
+        ordered.append(part)
+        if len(ordered) >= max_sentences:
+            break
+    return ordered
+
+
+def _has_markers(text: str) -> bool:
+    if not text:
+        return False
+    markers = ("但是", "然而", "其实", "结果", "后来", "最后", "因此", "所以")
+    return any(marker in text for marker in markers)
