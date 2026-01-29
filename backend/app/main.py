@@ -174,8 +174,14 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             results = []
         else:
             suggestions = _build_suggestions(request.query)
+            prompted_query = _build_prompted_query(request.query, "none", suggestions)
+            try:
+                answer = llm_client.generate_answer(prompted_query, "")
+            except Exception as exc:
+                logger.warning("LLM generate failed in /chat, falling back to MockLLM: %s", exc)
+                answer = MockLLM().generate_answer(prompted_query, "")
             return {
-                "answer": "资料中未找到相关内容。",
+                "answer": answer or "资料中未找到相关内容。",
                 "sources": [],
                 "retrieval": {
                     "mode": "none",
@@ -189,30 +195,16 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     chunks_by_id = {chunk.id: (chunk.text or "") for chunk in chunks}
 
     query_tokens = _tokenize_query(request.query)
-    matched_results = []
-    for item in results:
+    matched_results = results[: min(len(results), request.top_k)]
+    has_exact = False
+    for item in matched_results:
         text = chunks_by_id.get(item["chunk_id"], "")
         score = _match_score(query_tokens, text)
         if score >= 0.34 or (score > 0 and len(query_tokens) <= 2):
-            matched_results.append(item)
+            has_exact = True
+            break
 
-    match_mode = "exact" if matched_results else "semantic"
-    if not matched_results:
-        if forced_tool and tool_registry:
-            matched_results = []
-        elif results:
-            matched_results = results[: min(len(results), request.top_k)]
-        else:
-            suggestions = _build_suggestions(request.query)
-            return {
-                "answer": "资料中未找到相关内容。",
-                "sources": [],
-                "retrieval": {
-                    "mode": "none",
-                    "reason": "no_exact_match",
-                    "suggestions": suggestions,
-                },
-            }
+    match_mode = "exact" if has_exact else "semantic"
 
     context = ""
     if matched_results:
