@@ -587,3 +587,8 @@
 **风险与回滚**
 - 风险：页面复杂度提升
 - 回滚：保留入口但隐藏详情
+
+**验证方式**
+- npm --prefix frontend run lint
+- npm --prefix frontend run build
+- npm --prefix frontend run dev（访问 /research 与 /research/:id）
