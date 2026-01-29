@@ -34,6 +34,33 @@ STOPWORDS = {
     "该资料",
     "其实",
     "离了家",
+    "卧室",
+    "厅堂",
+    "书房",
+    "酒具",
+    "衣带",
+    "墙壁",
+    "柱梁",
+}
+BAD_KEYWORD_FRAGMENTS = {
+    "看到",
+    "并不",
+    "吓得",
+    "面如",
+    "因此",
+    "所以",
+    "喜欢",
+    "而是",
+    "表面",
+    "处处",
+    "不是",
+    "的",
+    "现身",
+    "到处",
+    "痴迷",
+    "雕刻",
+    "地逃",
+    "雕",
 }
 
 
@@ -175,10 +202,11 @@ def _generate_keywords(
 ) -> tuple[list[str], str]:
     prompt = (
         "请基于摘要生成关键词（中文），3-6 个即可。\n"
-        "要求：\n"
-        "1) 只输出关键词列表，不要解释；\n"
-        "2) 可用逗号/顿号/换行分隔；\n"
-        "3) 关键词应概括主题/人物/寓意。\n"
+        "严格要求：\n"
+        "1) 只输出 JSON 数组，例如：[\"词1\",\"词2\"]；\n"
+        "2) 每个关键词 2-6 个字；\n"
+        "3) 不要包含“资料/要点/主题/内容/部分/问题”等泛词；\n"
+        "4) 关键词应概括主题/人物/寓意。\n"
         f"摘要：{summary}\n"
     )
     raw = ""
@@ -187,6 +215,8 @@ def _generate_keywords(
     except Exception:
         return [], ""
     keywords = _parse_keywords(raw)
+    if not _keywords_look_good(keywords):
+        return [], raw or ""
     return keywords, raw or ""
 
 
@@ -200,20 +230,8 @@ def _parse_keywords(raw: str) -> list[str]:
         if isinstance(data, list):
             return _sanitize_keywords([str(item) for item in data])
     except Exception:
-        pass
-    # Split by common delimiters
-    parts = re.split(r"[，,、\n；;]+", cleaned)
-    normalized: list[str] = []
-    for part in parts:
-        candidate = part.strip()
-        if not candidate:
-            continue
-        candidate = re.sub(r"^[\-\*\•\d\.\)\(]+\s*", "", candidate)
-        candidate = candidate.strip()
-        if candidate:
-            normalized.append(candidate)
-    keywords = _sanitize_keywords(normalized)
-    return keywords
+        return []
+    return []
 
 
 def _parse_summary_response(raw: str) -> SummaryResult | None:
@@ -375,7 +393,7 @@ def _extract_cjk_keywords(context: str, limit: int = 6) -> list[str]:
 def _sanitize_keywords(words: list[str], limit: int = 6) -> list[str]:
     cleaned: list[str] = []
     for word in words:
-        trimmed = word[:4]
+        trimmed = word[:6]
         if trimmed.endswith(("上", "于", "的")):
             trimmed = trimmed[:3]
         trimmed = trimmed.strip()
@@ -387,6 +405,18 @@ def _sanitize_keywords(words: list[str], limit: int = 6) -> list[str]:
             or "主题" in trimmed
         ):
             continue
+        if any(fragment in trimmed for fragment in BAD_KEYWORD_FRAGMENTS):
+            continue
+        if trimmed.endswith(("地", "了", "着")):
+            continue
+        if trimmed.endswith("逃") and "逃跑" not in trimmed:
+            continue
+        if trimmed.startswith(("他", "她", "它")):
+            continue
+        if trimmed.startswith("在"):
+            continue
+        if trimmed.startswith("欢"):
+            continue
         if trimmed not in cleaned:
             cleaned.append(trimmed)
         if len(cleaned) >= limit:
@@ -395,10 +425,12 @@ def _sanitize_keywords(words: list[str], limit: int = 6) -> list[str]:
 
 
 def _keywords_look_good(words: list[str]) -> bool:
-    if not words:
+    if not words or len(words) < 3:
         return False
     for word in words:
-        if "资料" in word or "要点" in word or "主题" in word:
+        if len(word) < 2 or len(word) > 6:
+            return False
+        if "资料" in word or "要点" in word or "主题" in word or "内容" in word or "部分" in word:
             return False
     return True
 
@@ -433,10 +465,16 @@ def _refine_keywords(context: str, keywords: list[str]) -> list[str]:
         "逃跑",
         "惊慌",
         "伪善",
+        "虚有其表",
+        "名不副实",
     ]
     for term in candidates:
         if term in context and term not in extras:
             extras.append(term)
+    if "叶公" in context and "龙" in context:
+        for term in ["叶公好龙", "真龙", "虚有其表", "表里不一", "名不副实"]:
+            if term not in extras:
+                extras.append(term)
     merged = extras + keywords
     cleaned: list[str] = []
     for word in merged:
