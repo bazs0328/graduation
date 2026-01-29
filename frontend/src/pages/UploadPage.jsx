@@ -254,7 +254,6 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
               <p className="label">资料准备模板</p>
               <ol className="list">
                 <li>上传你的讲义/PDF/笔记（建议带标题与小节）。</li>
-                <li>补充“关键词清单”或“术语表”文档。</li>
                 <li>加入 5~10 个常见问题或考试题目。</li>
                 <li>上传后点击“重建索引”，再生成摘要。</li>
               </ol>
@@ -321,16 +320,6 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
                           )}
                         </div>
                         <p className="summary-text">{summaryByDoc[doc.id].summary}</p>
-                        <div className="summary-section">
-                          <p className="label">关键词</p>
-                          <div className="keyword-list">
-                            {(summaryByDoc[doc.id].keywords || []).map((item, index) => (
-                              <span className="badge" key={`${item}-${index}`}>
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
                         <div className="summary-section">
                           <p className="label">可问问题</p>
                           <div className="question-actions">

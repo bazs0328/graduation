@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from app.services.llm.base import LLMClient
+from app.services.llm.real import RealLLMClient
 
 
 MAX_CONTEXT_CHARS = 6000
@@ -43,24 +44,10 @@ STOPWORDS = {
     "柱梁",
 }
 BAD_KEYWORD_FRAGMENTS = {
-    "看到",
-    "并不",
-    "吓得",
-    "面如",
     "因此",
     "所以",
-    "喜欢",
-    "而是",
-    "表面",
-    "处处",
+    "并不",
     "不是",
-    "的",
-    "现身",
-    "到处",
-    "痴迷",
-    "雕刻",
-    "地逃",
-    "雕",
 }
 
 
@@ -150,9 +137,7 @@ def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult
         and "。" in cleaned
         and not _looks_like_verbatim(cleaned, context)
     ):
-        keywords, keyword_raw = _generate_keywords(llm_client, cleaned, context)
-        if not keywords:
-            keywords = _build_keywords(context, cleaned, "", [])
+        keywords = []
         questions = _build_questions(keywords)
         result = SummaryResult(summary=cleaned, keywords=keywords, questions=questions)
         trace = SummaryTrace(
@@ -160,7 +145,7 @@ def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult
             raw_output=response or "",
             used_fallback=False,
             fallback_reason="",
-            keyword_raw_output=keyword_raw,
+            keyword_raw_output="",
         )
         return result, trace
 
@@ -168,20 +153,12 @@ def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult
     reason = "summary_failed"
     if cleaned and _looks_like_verbatim(cleaned, context):
         reason = "verbatim_detected"
-    keyword_raw = ""
-    llm_keywords, keyword_raw = _generate_keywords(llm_client, fallback.summary, context)
-    if llm_keywords:
-        fallback = SummaryResult(
-            summary=fallback.summary,
-            keywords=llm_keywords,
-            questions=_build_questions(llm_keywords),
-        )
     trace = SummaryTrace(
         prompt=prompt,
         raw_output=response or "",
         used_fallback=True,
         fallback_reason=reason,
-        keyword_raw_output=keyword_raw,
+        keyword_raw_output="",
     )
     return fallback, trace
 
@@ -200,24 +177,52 @@ def _generate_keywords(
     summary: str,
     context: str,
 ) -> tuple[list[str], str]:
+    keyword_client: LLMClient = llm_client
+    if isinstance(llm_client, RealLLMClient) and "reasoner" in (llm_client.model or ""):
+        keyword_client = RealLLMClient(
+            base_url=llm_client.base_url,
+            api_key=llm_client.api_key,
+            model="deepseek-chat",
+            timeout=llm_client.timeout,
+            max_tokens=llm_client.max_tokens,
+        )
     prompt = (
-        "请基于摘要生成关键词（中文），3-6 个即可。\n"
+        "你是中文学习资料助手，请根据资料与摘要生成关键词。\n"
         "严格要求：\n"
-        "1) 只输出 JSON 数组，例如：[\"词1\",\"词2\"]；\n"
-        "2) 每个关键词 2-6 个字；\n"
-        "3) 不要包含“资料/要点/主题/内容/部分/问题”等泛词；\n"
-        "4) 关键词应概括主题/人物/寓意。\n"
+        "1) 只输出 JSON 对象，包含 entities/actions/themes 三个数组；\n"
+        "2) 每个关键词为名词或名词短语，避免动词短语或原文截断；\n"
+        "3) 每个数组 2-4 个词，且不得为空；\n"
+        "4) 不要出现“资料/要点/主题/内容/部分/问题”等泛词；\n"
+        "5) 若为寓言，themes 必须包含寓意类关键词。\n"
+        "输出示例：{\"entities\":[\"叶公\",\"真龙\"],\"actions\":[\"真龙降临\",\"惊惧逃跑\"],\"themes\":[\"表里不一\",\"名不副实\"]}\n"
         f"摘要：{summary}\n"
     )
     raw = ""
     try:
-        raw = llm_client.generate_answer(prompt, context[:1000])
+        context_snippet = context[:1000]
+        raw_query = f"{prompt}\n资料：\n{context_snippet}\n"
+        raw = keyword_client.generate_answer(f"RAW_JSON:{raw_query}", "")
     except Exception:
         return [], ""
     keywords = _parse_keywords(raw)
-    if not _keywords_look_good(keywords):
+    keywords = _sanitize_keywords(keywords, limit=8, strict=False)
+    if _keywords_look_good(keywords):
+        return keywords, raw or ""
+    retry_prompt = (
+        "请直接从摘要中提炼关键词，必须输出 JSON 对象："
+        "{\"entities\":[...],\"actions\":[...],\"themes\":[...]}\n"
+        "三组都不得为空，且为名词短语。\n"
+        f"摘要：{summary}\n"
+    )
+    try:
+        retry_raw = keyword_client.generate_answer(f"RAW_JSON:{retry_prompt}", "")
+    except Exception:
         return [], raw or ""
-    return keywords, raw or ""
+    retry_keywords = _parse_keywords(retry_raw)
+    retry_keywords = _sanitize_keywords(retry_keywords, limit=8, strict=False)
+    if _keywords_look_good(retry_keywords):
+        return retry_keywords, retry_raw or ""
+    return [], raw or ""
 
 
 def _parse_keywords(raw: str) -> list[str]:
@@ -228,7 +233,15 @@ def _parse_keywords(raw: str) -> list[str]:
     try:
         data = json.loads(cleaned)
         if isinstance(data, list):
-            return _sanitize_keywords([str(item) for item in data])
+            return [str(item).strip() for item in data if str(item).strip()]
+        if isinstance(data, dict):
+            items: list[str] = []
+            for key in ("entities", "actions", "themes"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    items.extend([str(item).strip() for item in value if str(item).strip()])
+            if items:
+                return items
     except Exception:
         return []
     return []
@@ -276,11 +289,9 @@ def _normalize_list(value) -> list[str]:
 def _fallback_summary(context: str, raw: str) -> SummaryResult:
     title = _extract_title(context)
     list_items = _extract_list_items(context)
-    cjk_keywords = _extract_cjk_keywords(context)
     latin_keywords = _extract_latin_keywords(context)
 
     if _contains_cjk(context):
-        keywords = cjk_keywords or DEFAULT_KEYWORDS[:]
         if _has_markers(context):
             summary_source = context
         else:
@@ -289,23 +300,22 @@ def _fallback_summary(context: str, raw: str) -> SummaryResult:
         summary = _build_structured_summary(
             title,
             list_items,
-            keywords,
+            [],
             [],
             is_cjk=True,
             key_points=key_points,
         )
-        keywords = _build_keywords(context, summary, title, key_points)
     else:
-        keywords = cjk_keywords or ["英文资料", "标题", "结构", "列表", "要点"]
         summary = _build_structured_summary(
             title,
             list_items,
-            keywords,
+            [],
             latin_keywords,
             is_cjk=False,
             key_points=[],
         )
 
+    keywords: list[str] = []
     questions = _build_questions(keywords)
     return SummaryResult(summary=summary, keywords=keywords, questions=questions)
 
@@ -390,33 +400,26 @@ def _extract_cjk_keywords(context: str, limit: int = 6) -> list[str]:
     return [word for word, _ in sorted_words[:limit]]
 
 
-def _sanitize_keywords(words: list[str], limit: int = 6) -> list[str]:
+def _sanitize_keywords(words: list[str], limit: int = 6, strict: bool = True) -> list[str]:
     cleaned: list[str] = []
     for word in words:
-        trimmed = word[:6]
-        if trimmed.endswith(("上", "于", "的")):
-            trimmed = trimmed[:3]
-        trimmed = trimmed.strip()
-        if (
-            not trimmed
-            or trimmed in STOPWORDS
-            or "资料" in trimmed
-            or "要点" in trimmed
-            or "主题" in trimmed
-        ):
+        trimmed = word.strip()
+        if not trimmed:
             continue
-        if any(fragment in trimmed for fragment in BAD_KEYWORD_FRAGMENTS):
-            continue
-        if trimmed.endswith(("地", "了", "着")):
-            continue
-        if trimmed.endswith("逃") and "逃跑" not in trimmed:
-            continue
-        if trimmed.startswith(("他", "她", "它")):
-            continue
-        if trimmed.startswith("在"):
-            continue
-        if trimmed.startswith("欢"):
-            continue
+        if strict:
+            trimmed = trimmed[:6]
+            if trimmed.endswith(("上", "于", "的")):
+                trimmed = trimmed[:3]
+            if (
+                not trimmed
+                or trimmed in STOPWORDS
+                or "资料" in trimmed
+                or "要点" in trimmed
+                or "主题" in trimmed
+            ):
+                continue
+            if any(fragment in trimmed for fragment in BAD_KEYWORD_FRAGMENTS):
+                continue
         if trimmed not in cleaned:
             cleaned.append(trimmed)
         if len(cleaned) >= limit:
@@ -428,7 +431,7 @@ def _keywords_look_good(words: list[str]) -> bool:
     if not words or len(words) < 3:
         return False
     for word in words:
-        if len(word) < 2 or len(word) > 6:
+        if not word:
             return False
         if "资料" in word or "要点" in word or "主题" in word or "内容" in word or "部分" in word:
             return False
@@ -437,13 +440,13 @@ def _keywords_look_good(words: list[str]) -> bool:
 
 def _build_keywords(context: str, summary: str, title: str, key_points: list[str]) -> list[str]:
     source = " ".join([title, " ".join(key_points), summary, context])
-    keywords = _sanitize_keywords(_extract_cjk_keywords(source))
+    keywords = _sanitize_keywords(_extract_cjk_keywords(source), strict=True)
     if title:
         short_title = title.strip()[:6]
         if short_title and short_title not in keywords:
             keywords.insert(0, short_title)
     if len(keywords) < 3:
-        fallback = _sanitize_keywords(_extract_cjk_keywords(context))
+        fallback = _sanitize_keywords(_extract_cjk_keywords(context), strict=True)
         for item in fallback:
             if item not in keywords:
                 keywords.append(item)
