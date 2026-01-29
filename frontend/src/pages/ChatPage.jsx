@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { chat, resolveSources } from '../lib/api';
 
 export default function ChatPage({ sessionId }) {
+  const location = useLocation();
   const [query, setQuery] = useState('');
   const [topK, setTopK] = useState(5);
   const [answer, setAnswer] = useState(null);
@@ -12,6 +14,15 @@ export default function ChatPage({ sessionId }) {
   const [sourceError, setSourceError] = useState(null);
   const [showTools, setShowTools] = useState(false);
   const sessionReady = Boolean((sessionId || '').trim());
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const preset = params.get('q');
+    if (preset) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setQuery(preset);
+    }
+  }, [location.search]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();

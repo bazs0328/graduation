@@ -67,6 +67,17 @@ export function listDocumentChunks(docId, limit = 20, offset = 0, sessionId) {
   );
 }
 
+export function generateDocSummary(docId, force = false, sessionId) {
+  return request(
+    `/docs/${docId}/summary`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    },
+    sessionId,
+  );
+}
+
 export function rebuildIndex(sessionId) {
   return request('/index/rebuild', { method: 'POST' }, sessionId);
 }

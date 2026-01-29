@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   deleteDocument,
+  generateDocSummary,
   listDocumentChunks,
   listDocuments,
   rebuildIndex,
@@ -8,6 +10,7 @@ import {
 } from '../lib/api';
 
 export default function UploadPage({ sessionId, documentId, setDocumentId }) {
+  const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
   const [response, setResponse] = useState(null);
@@ -19,6 +22,7 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
   const [search, setSearch] = useState('');
   const [expandedDocId, setExpandedDocId] = useState(null);
   const [chunksByDoc, setChunksByDoc] = useState({});
+  const [summaryByDoc, setSummaryByDoc] = useState({});
   const [rebuildStatus, setRebuildStatus] = useState('');
   const [rebuildError, setRebuildError] = useState(null);
   const [rebuildResponse, setRebuildResponse] = useState(null);
@@ -89,6 +93,11 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
     try {
       await deleteDocument(docId, sessionId);
       setExpandedDocId(null);
+      setSummaryByDoc((prev) => {
+        const next = { ...prev };
+        delete next[docId];
+        return next;
+      });
       await loadDocuments();
     } catch (err) {
       setDocsError(err);
@@ -129,6 +138,25 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
     } catch (err) {
       setError(err);
       setStatus('上传失败。');
+    }
+  };
+
+  const handleGenerateSummary = async (docId, force = false) => {
+    setSummaryByDoc((prev) => ({
+      ...prev,
+      [docId]: { ...(prev[docId] || {}), status: '正在生成摘要...', error: null },
+    }));
+    try {
+      const result = await generateDocSummary(docId, force, sessionId);
+      setSummaryByDoc((prev) => ({
+        ...prev,
+        [docId]: { ...result, status: '', error: null },
+      }));
+    } catch (err) {
+      setSummaryByDoc((prev) => ({
+        ...prev,
+        [docId]: { ...(prev[docId] || {}), status: '生成失败。', error: err },
+      }));
     }
   };
 
@@ -246,6 +274,13 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
                       <button
                         className="ghost"
                         type="button"
+                        onClick={() => handleGenerateSummary(doc.id, Boolean(summaryByDoc[doc.id]?.summary))}
+                      >
+                        {summaryByDoc[doc.id]?.summary ? '重新生成摘要' : '生成摘要'}
+                      </button>
+                      <button
+                        className="ghost"
+                        type="button"
                         onClick={() => handleToggleChunks(doc.id)}
                       >
                         {isExpanded ? '收起片段' : '查看片段'}
@@ -258,6 +293,52 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
                         删除
                       </button>
                     </div>
+                  </div>
+                  <div className="doc-summary">
+                    {summaryByDoc[doc.id]?.status && (
+                      <p className="status">{summaryByDoc[doc.id].status}</p>
+                    )}
+                    {summaryByDoc[doc.id]?.error && (
+                      <p className="alert error">{summaryByDoc[doc.id].error.message}</p>
+                    )}
+                    {summaryByDoc[doc.id]?.summary ? (
+                      <div className="summary-card">
+                        <div className="summary-header">
+                          <span className="badge">LLM 摘要</span>
+                          {summaryByDoc[doc.id]?.cached && (
+                            <span className="badge">缓存命中</span>
+                          )}
+                        </div>
+                        <p className="summary-text">{summaryByDoc[doc.id].summary}</p>
+                        <div className="summary-section">
+                          <p className="label">关键词</p>
+                          <div className="keyword-list">
+                            {(summaryByDoc[doc.id].keywords || []).map((item, index) => (
+                              <span className="badge" key={`${item}-${index}`}>
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="summary-section">
+                          <p className="label">可问问题</p>
+                          <div className="question-actions">
+                            {(summaryByDoc[doc.id].questions || []).map((item, index) => (
+                              <button
+                                className="ghost"
+                                type="button"
+                                key={`${item}-${index}`}
+                                onClick={() => navigate(`/chat?q=${encodeURIComponent(item)}`)}
+                              >
+                                {item}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="subtle">可按需生成 LLM 摘要与问题建议。</p>
+                    )}
                   </div>
                   {isExpanded && (
                     <div className="doc-chunks">

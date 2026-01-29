@@ -458,6 +458,50 @@ textarea.input {
   gap: 10px;
 }
 
+.doc-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.summary-text {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.summary-section {
+  display: grid;
+  gap: 6px;
+}
+
+.keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .chunk-list {
   display: grid;
   gap: 10px;
