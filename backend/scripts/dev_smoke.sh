@@ -98,6 +98,14 @@ chat_raw = http_post_json("/chat", {"query": "fox", "top_k": 5})
 print(chat_raw)
 chat_data = json.loads(chat_raw)
 
+step("Chat tool calc")
+tool_chat_raw = http_post_json("/chat", {"query": "calc: 2+2", "top_k": 1})
+print(tool_chat_raw)
+tool_chat = json.loads(tool_chat_raw)
+tool_traces = tool_chat.get("tool_traces") or []
+if not tool_traces:
+    raise SystemExit("tool_traces missing from /chat")
+
 
 def resolve_sources(label: str, chunk_ids: list[int]) -> list[dict]:
     step(label)

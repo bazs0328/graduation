@@ -495,7 +495,7 @@
 - 风险：需要补齐历史查询接口
 - 回滚：保留页面结构但显示“暂无记录”
 
-### [ ] LLM-002 受控工具链 MVP（搜索/执行）
+### [~] LLM-002 受控工具链 MVP（搜索/执行）
 **目标**
 引入受控工具调用能力（白名单 + 配额 + 可关闭），作为“突破链路”的基础。
 
@@ -510,6 +510,10 @@
 - 工具可按配置启用/禁用
 - LLM 可触发工具并返回可追溯引用
 - 工具调用失败时可安全降级（无 500）
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
 
 **依赖**
 - 现有 LLM provider 支持 tool calls
