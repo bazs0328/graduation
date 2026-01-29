@@ -25,6 +25,7 @@ from app.schemas.research import (
 )
 from app.schemas.source import SourceResolveRequest, SourceResolveResponse
 from app.services.document_parser import build_chunks, extract_text
+from app.services.doc_summary import SummaryCache, SummaryResult, build_context, generate_summary
 from app.services.index_manager import IndexManager
 from app.services.llm.mock import MockLLM
 from app.services.provider_factory import build_embedder, build_llm_client
@@ -65,6 +66,7 @@ index_manager = IndexManager(
 )
 llm_client = build_llm_client(settings)
 tool_registry = build_tool_registry(settings)
+summary_cache = SummaryCache()
 MAX_CONTEXT_LENGTH = 4000
 logger = logging.getLogger(__name__)
 
@@ -216,6 +218,7 @@ def delete_document(doc_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(document)
     db.commit()
+    summary_cache.invalidate(doc_id)
     return {"status": "deleted", "document_id": doc_id}
 
 
@@ -241,6 +244,74 @@ def search(request: SearchRequest, db: Session = Depends(get_db)):
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int = Field(5, ge=1)
+
+
+class DocSummaryRequest(BaseModel):
+    force: bool = False
+
+
+class DocSummaryResponse(BaseModel):
+    document_id: int
+    summary: str
+    keywords: list[str]
+    questions: list[str]
+    cached: bool
+
+
+def _error_response(status: int, code: str, message: str, details: dict | None = None) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        content={"code": code, "message": message, "details": details or {}},
+    )
+
+
+@app.post("/docs/{doc_id}/summary", response_model=DocSummaryResponse)
+def generate_doc_summary(
+    doc_id: int,
+    payload: DocSummaryRequest,
+    db: Session = Depends(get_db),
+):
+    document = db.query(Document).filter(Document.id == doc_id).first()
+    if not document:
+        return _error_response(404, "DOC_NOT_FOUND", "Document not found", {"document_id": doc_id})
+
+    if not payload.force:
+        cached = summary_cache.get(doc_id)
+        if cached:
+            return DocSummaryResponse(
+                document_id=doc_id,
+                summary=cached["summary"],
+                keywords=cached["keywords"],
+                questions=cached["questions"],
+                cached=True,
+            )
+
+    chunks = (
+        db.query(Chunk)
+        .filter(Chunk.document_id == doc_id)
+        .order_by(Chunk.chunk_index.asc())
+        .all()
+    )
+    if not chunks:
+        return _error_response(409, "DOC_EMPTY", "Document has no chunks", {"document_id": doc_id})
+
+    context = build_context([chunk.text for chunk in chunks])
+    if not context:
+        return _error_response(409, "DOC_EMPTY", "Document has no usable content", {"document_id": doc_id})
+
+    try:
+        result: SummaryResult = generate_summary(llm_client, context)
+    except Exception as exc:
+        logger.warning("LLM summary failed, falling back to MockLLM: %s", exc)
+        result = generate_summary(MockLLM(), context)
+    summary_cache.set(doc_id, result)
+    return DocSummaryResponse(
+        document_id=doc_id,
+        summary=result.summary,
+        keywords=result.keywords,
+        questions=result.questions,
+        cached=False,
+    )
 
 
 @app.post("/chat")

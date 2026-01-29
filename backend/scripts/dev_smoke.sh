@@ -90,6 +90,16 @@ print(f"document_id={doc_id}")
 step("Rebuild index")
 print(http_post("/index/rebuild"))
 
+step("Doc summary")
+if not doc_id:
+    print("document_id missing; skip doc summary")
+else:
+    summary_raw = http_post_json(f"/docs/{doc_id}/summary", {"force": True})
+    print(summary_raw)
+    summary_data = json.loads(summary_raw)
+    if not summary_data.get("summary"):
+        raise SystemExit("doc summary missing")
+
 step("Search keyword")
 print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 

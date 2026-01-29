@@ -57,6 +57,28 @@ Fetch document metadata:
 curl http://localhost:8000/docs/{id}
 ```
 
+### Document summary (LLM, on-demand)
+
+Generate a Chinese summary, keywords, and suggested questions:
+
+```
+curl -X POST http://localhost:8000/docs/{id}/summary \
+  -H "Content-Type: application/json" \
+  -d '{"force": true}'
+```
+
+Response example:
+
+```
+{"document_id":1,"summary":"...","keywords":["..."],"questions":["..."],"cached":false}
+```
+
+Error example (no chunks / empty doc):
+
+```
+{"code":"DOC_EMPTY","message":"Document has no chunks","details":{"document_id":1}}
+```
+
 ### Build FAISS index
 
 Rebuild index from all chunks:
