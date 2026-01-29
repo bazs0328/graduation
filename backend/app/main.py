@@ -272,13 +272,21 @@ def get_session_id(x_session_id: str | None = Header(default=None)) -> str:
     return (x_session_id or "").strip() or "default"
 
 
+def require_session_id(x_session_id: str | None) -> str:
+    trimmed = (x_session_id or "").strip()
+    if not trimmed:
+        raise ResearchError(400, "X-Session-Id is required", {"header": "X-Session-Id"})
+    return trimmed
+
+
 @app.post("/research", response_model=ResearchCreateResponse)
 def create_research(
     request: ResearchCreateRequest,
     db: Session = Depends(get_db),
-    session_id: str = Depends(get_session_id),
+    x_session_id: str | None = Header(default=None),
 ):
     try:
+        session_id = require_session_id(x_session_id)
         research = create_research_session(db, session_id, request.title, request.summary)
         return {
             "research_id": research.id,
@@ -300,9 +308,10 @@ def append_research_entry(
     research_id: int,
     request: ResearchEntryCreateRequest,
     db: Session = Depends(get_db),
-    session_id: str = Depends(get_session_id),
+    x_session_id: str | None = Header(default=None),
 ):
     try:
+        session_id = require_session_id(x_session_id)
         entry = add_research_entry(
             db,
             session_id=session_id,
@@ -331,31 +340,39 @@ def append_research_entry(
 @app.get("/research", response_model=ResearchListResponse)
 def list_research(
     db: Session = Depends(get_db),
-    session_id: str = Depends(get_session_id),
+    x_session_id: str | None = Header(default=None),
 ):
-    items = list_research_sessions(db, session_id)
-    return {
-        "items": [
-            {
-                "research_id": research.id,
-                "title": research.title,
-                "summary": research.summary,
-                "entry_count": count,
-                "created_at": research.created_at,
-                "updated_at": research.updated_at,
-            }
-            for research, count in items
-        ]
-    }
+    try:
+        session_id = require_session_id(x_session_id)
+        items = list_research_sessions(db, session_id)
+        return {
+            "items": [
+                {
+                    "research_id": research.id,
+                    "title": research.title,
+                    "summary": research.summary,
+                    "entry_count": count,
+                    "created_at": research.created_at,
+                    "updated_at": research.updated_at,
+                }
+                for research, count in items
+            ]
+        }
+    except ResearchError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )
 
 
 @app.get("/research/{research_id}", response_model=ResearchDetailResponse)
 def research_detail(
     research_id: int,
     db: Session = Depends(get_db),
-    session_id: str = Depends(get_session_id),
+    x_session_id: str | None = Header(default=None),
 ):
     try:
+        session_id = require_session_id(x_session_id)
         research, entries = get_research_detail(db, session_id, research_id)
         return {
             "research_id": research.id,

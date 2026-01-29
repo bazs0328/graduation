@@ -172,6 +172,7 @@ curl -H "X-Session-Id: demo" http://localhost:8000/research/1
 Notes:
 - `entry_type` is a free label (e.g., `question`, `analysis`, `note`, `tool`).
 - `sources` can include `document_name` and `text_preview` for UI replay.
+- `X-Session-Id` is required for all `/research` endpoints; missing header returns 400.
 - Session mismatch returns 403 with `{code,message,details}`; missing id returns 404.
 
 ### Quiz generate (Phase 2 Easy-only)
