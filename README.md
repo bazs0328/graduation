@@ -76,7 +76,7 @@ Response example:
 Debug trace (prompt + raw output + fallback):
 
 ```
-curl -X POST "http://localhost:8000/docs/{id}/summary?debug=1" \
+curl -X POST "http://localhost:8000/docs/{id}/summary" \
   -H "Content-Type: application/json" \
   -d '{"force": true}'
 ```

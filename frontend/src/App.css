@@ -490,12 +490,6 @@ textarea.input {
   gap: 6px;
 }
 
-.keyword-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .question-actions {
   display: flex;
   flex-wrap: wrap;

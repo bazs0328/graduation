@@ -64,7 +64,6 @@ class SummaryTrace:
     raw_output: str
     used_fallback: bool
     fallback_reason: str
-    keyword_raw_output: str = ""
 
 
 class SummaryCache:
@@ -145,7 +144,6 @@ def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult
             raw_output=response or "",
             used_fallback=False,
             fallback_reason="",
-            keyword_raw_output="",
         )
         return result, trace
 
@@ -158,7 +156,6 @@ def generate_summary(llm_client: LLMClient, context: str) -> tuple[SummaryResult
         raw_output=response or "",
         used_fallback=True,
         fallback_reason=reason,
-        keyword_raw_output="",
     )
     return fallback, trace
 
