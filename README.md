@@ -125,6 +125,55 @@ Error (example):
 {"code":404,"message":"Sources not found","details":{"missing_chunk_ids":[999]}}
 ```
 
+### Research / Notebook (Phase 4)
+
+Create a research session:
+
+```
+curl -X POST http://localhost:8000/research -H "Content-Type: application/json" -H "X-Session-Id: demo" -d '{"title":"RAG reliability","summary":"Collect tool outputs and citations."}'
+```
+
+Response example:
+
+```
+{"research_id":1,"session_id":"demo","title":"RAG reliability","summary":"Collect tool outputs and citations.","created_at":"2026-01-29T11:05:00","updated_at":"2026-01-29T11:05:00"}
+```
+
+Append a notebook entry:
+
+```
+curl -X POST http://localhost:8000/research/1/entries -H "Content-Type: application/json" -H "X-Session-Id: demo" -d '{"entry_type":"note","content":"Initial findings","tool_traces":[{"tool_name":"calc","input":{"expression":"2+2"},"output":"4"}],"sources":[{"chunk_id":1,"document_id":1,"document_name":"sample.md","text_preview":"# Sample Markdown..."}]}'
+```
+
+Response example:
+
+```
+{"entry_id":1,"research_id":1,"entry_type":"note","content":"Initial findings","tool_traces":[{"tool_name":"calc","input":{"expression":"2+2"},"output":"4"}],"sources":[{"chunk_id":1,"document_id":1,"document_name":"sample.md","text_preview":"# Sample Markdown..."}],"created_at":"2026-01-29T11:06:00"}
+```
+
+List research sessions:
+
+```
+curl -H "X-Session-Id: demo" http://localhost:8000/research
+```
+
+Response example:
+
+```
+{"items":[{"research_id":1,"title":"RAG reliability","summary":"Collect tool outputs and citations.","entry_count":1,"created_at":"2026-01-29T11:05:00","updated_at":"2026-01-29T11:06:00"}]}
+```
+
+Research detail:
+
+```
+curl -H "X-Session-Id: demo" http://localhost:8000/research/1
+```
+
+Notes:
+- `entry_type` is a free label (e.g., `question`, `analysis`, `note`, `tool`).
+- `sources` can include `document_name` and `text_preview` for UI replay.
+- Session mismatch returns 403 with `{code,message,details}`; missing id returns 404.
+
 ### Quiz generate (Phase 2 Easy-only)
 
 ```

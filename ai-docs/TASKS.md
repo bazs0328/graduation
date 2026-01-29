@@ -548,6 +548,24 @@
 - 风险：迁移影响已有表
 - 回滚：隐藏入口，保留旧流程
 
+**验证方式**
+- docker compose up -d --build backend
+- docker compose exec backend alembic upgrade head
+- docker compose exec backend alembic downgrade -1
+- docker compose exec backend python - <<'PY'
+  from app.db.session import SessionLocal
+  from app.db import models
+  db = SessionLocal()
+  research = models.ResearchSession(session_id="verify", title="Verify", summary="Check insert")
+  db.add(research); db.commit(); db.refresh(research)
+  entry = models.ResearchEntry(research_id=research.id, entry_type="note", content="hello")
+  db.add(entry); db.commit(); db.refresh(entry)
+  print(f"research_id={research.id} entry_id={entry.id}")
+  db.close()
+  PY
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
+
 ### [ ] FE-010 研究/Notebook 前端入口与记录页
 **目标**
 提供研究/Notebook 的前端入口，让“突破链路”可视化与可回访。
