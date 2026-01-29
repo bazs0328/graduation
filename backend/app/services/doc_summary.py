@@ -139,8 +139,8 @@ def _normalize_list(value) -> list[str]:
 
 def _fallback_summary(context: str, raw: str) -> SummaryResult:
     summary = _summarize_from_context(context)
-    if not summary:
-        summary = "该资料暂无可用摘要，请补充更完整的内容后重试。"
+    if not summary or not _contains_cjk(summary):
+        summary = "该资料主要为非中文内容，已生成通用中文摘要。建议用中文关键词提问，或补充中文资料以获得更精确的总结。"
     keywords = DEFAULT_KEYWORDS[:]
     questions = DEFAULT_QUESTIONS[:3]
     return SummaryResult(summary=summary, keywords=keywords, questions=questions)
