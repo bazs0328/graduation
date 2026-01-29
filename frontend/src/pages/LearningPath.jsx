@@ -50,6 +50,7 @@ function buildLearningPath(profile) {
       title: `复习概念：${name}`,
       reason: `该概念错题 ${wrongCount} 次，错误率 ${wrongRate}。`,
       source: { label: '学习画像', to: '/profile' },
+      action: { label: '查看画像', to: '/profile' },
     });
   });
 
@@ -61,6 +62,7 @@ function buildLearningPath(profile) {
         lastQuiz.accuracy,
       )}，建议复盘错题。`,
       source: { label: '最近测验', to: '/quiz' },
+      action: { label: '查看测验', to: '/quiz' },
     });
   }
 
@@ -72,6 +74,7 @@ function buildLearningPath(profile) {
       title: '先做简单题巩固基础',
       reason: '系统建议优先简单题，逐步建立信心。',
       source: { label: '测验建议', to: '/quiz' },
+      action: { label: '开始测验', to: '/quiz' },
     });
   }
 
@@ -80,16 +83,19 @@ function buildLearningPath(profile) {
       title: '回看资料并标注关键段落',
       reason: '把与薄弱概念相关的段落标注出来，降低遗忘率。',
       source: { label: '资料管理', to: '/upload' },
+      action: { label: '上传资料', to: '/upload' },
     },
     {
       title: '围绕薄弱概念提一个问题',
       reason: '用问答验证理解是否完整。',
       source: { label: '问答', to: '/chat' },
+      action: { label: '去问答', to: '/chat' },
     },
     {
       title: '完成一轮小测验',
       reason: '将复习结果应用到新的题目上。',
       source: { label: '测验', to: '/quiz' },
+      action: { label: '开始测验', to: '/quiz' },
     },
   ];
 
@@ -190,6 +196,13 @@ export default function LearningPathPage({ sessionId }) {
                   <span className="subtle">暂无</span>
                 )}
               </div>
+              {step.action ? (
+                <div className="path-actions">
+                  <Link className="primary link-button" to={step.action.to}>
+                    {step.action.label}
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ))
         ) : (

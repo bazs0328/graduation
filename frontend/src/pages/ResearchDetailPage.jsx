@@ -39,6 +39,8 @@ export default function ResearchDetailPage({ sessionId }) {
   const [submitError, setSubmitError] = useState(null);
   const [openEntryId, setOpenEntryId] = useState(null);
   const sessionReady = Boolean((sessionId || '').trim());
+  const templateText =
+    '问题：\n- \n\n证据：\n- \n\n结论：\n- \n\n下一步：\n- ';
 
   const loadDetail = useCallback(async () => {
     if (!researchId) {
@@ -118,6 +120,16 @@ export default function ResearchDetailPage({ sessionId }) {
         <div className="inline">
           <h2>追加研究条目</h2>
           <span className="badge">Entry</span>
+        </div>
+        <div className="inline">
+          <button
+            className="secondary"
+            type="button"
+            onClick={() => setContent(templateText)}
+          >
+            插入结构化模板
+          </button>
+          <span className="hint">问题 → 证据 → 结论 → 下一步</span>
         </div>
         <form className="form" onSubmit={handleSubmit}>
           <label className="field">

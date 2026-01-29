@@ -314,6 +314,18 @@ textarea.input {
   color: var(--muted);
 }
 
+.retrieval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.soft-suggestions {
+  margin-top: 16px;
+  background: linear-gradient(135deg, #fff4e8 0%, #ffffff 60%);
+}
+
 .question-list {
   display: grid;
   gap: 16px;
@@ -545,6 +557,10 @@ textarea.input {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
+}
+
+.path-actions {
+  margin-top: 12px;
 }
 
 .source-link {

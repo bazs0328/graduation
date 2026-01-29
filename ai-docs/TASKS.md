@@ -533,6 +533,7 @@
 **交付物**
 - 检索召回增强：查询改写/语义扩展/多路召回（至少其一）
 - 无命中时的可解释反馈（原因 + 建议提问方式）
+- LLM Prompt 调整：弱命中时提示“仅基于资料回答 + 改写建议”
 - 前端会话一致性检查与提示（X-Session-Id 必填）
 - 学习路径“可行动”提示增强（理由 + 下一步）
 - Notebook 结构化模板（问题→证据→结论→下一步）
@@ -551,6 +552,12 @@
 **风险与回滚**
 - 风险：召回变化影响原有结果稳定性
 - 回滚：保留原检索策略为 fallback
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
+- npm --prefix frontend run lint
+- npm --prefix frontend run build
 
 ### [x] REL-002 研究/Notebook 数据模型与接口（最小版）
 **目标**

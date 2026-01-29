@@ -22,6 +22,8 @@ export default function ResearchListPage({ sessionId }) {
   const [createStatus, setCreateStatus] = useState('');
   const [createError, setCreateError] = useState(null);
   const sessionReady = Boolean((sessionId || '').trim());
+  const summaryTemplate =
+    '问题：\n证据：\n结论：\n下一步：';
 
   const loadResearch = useCallback(async () => {
     setStatus('正在加载研究记录...');
@@ -133,6 +135,13 @@ export default function ResearchListPage({ sessionId }) {
                 placeholder="概括研究目标或当前结论"
               />
             </label>
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => setSummary(summaryTemplate)}
+            >
+              使用结构化摘要模板
+            </button>
             <button className="primary" type="submit" disabled={!sessionReady}>
               创建研究记录
             </button>

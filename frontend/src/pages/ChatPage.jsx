@@ -11,9 +11,14 @@ export default function ChatPage({ sessionId }) {
   const [sourceStatus, setSourceStatus] = useState('');
   const [sourceError, setSourceError] = useState(null);
   const [showTools, setShowTools] = useState(false);
+  const sessionReady = Boolean((sessionId || '').trim());
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!sessionReady) {
+      setError(new Error('请先在顶部填写会话 ID。'));
+      return;
+    }
     if (!query.trim()) {
       setError(new Error('请输入问题。'));
       return;
@@ -84,6 +89,9 @@ export default function ChatPage({ sessionId }) {
         </form>
         <p className="status">{status}</p>
         {error && <p className="alert error">{error.message}</p>}
+        {!sessionReady && (
+          <p className="alert info">当前会话 ID 为空，请先填写再提问。</p>
+        )}
       </div>
 
       <div className="card">
@@ -91,6 +99,26 @@ export default function ChatPage({ sessionId }) {
         {answer ? (
           <>
             <p className="answer">{answer.answer}</p>
+            {answer.retrieval && (
+              <div className="retrieval-meta">
+                <span className="badge">
+                  检索模式：{answer.retrieval.mode === 'exact' ? '精确' : '语义'}
+                </span>
+                {answer.retrieval.reason && (
+                  <span className="badge">原因：{answer.retrieval.reason}</span>
+                )}
+              </div>
+            )}
+            {answer.retrieval?.suggestions?.length ? (
+              <div className="card soft-suggestions">
+                <p className="label">改写建议</p>
+                <ul className="list">
+                  {answer.retrieval.suggestions.map((item, index) => (
+                    <li key={`${item}-${index}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {answer.tool_traces?.length ? (
               <div className="tools">
                 <div className="tool-header">
