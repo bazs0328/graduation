@@ -248,7 +248,18 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
         {docsError && <p className="alert error">{docsError.message}</p>}
         {docsStatus && <p className="status">{docsStatus}</p>}
         {filteredDocs.length === 0 ? (
-          <p className="subtle">暂无资料，先上传一份试试。</p>
+          <div className="empty-template">
+            <p className="subtle">暂无资料，先上传一份试试。</p>
+            <div className="template-card">
+              <p className="label">资料准备模板</p>
+              <ol className="list">
+                <li>上传你的讲义/PDF/笔记（建议带标题与小节）。</li>
+                <li>补充“关键词清单”或“术语表”文档。</li>
+                <li>加入 5~10 个常见问题或考试题目。</li>
+                <li>上传后点击“重建索引”，再生成摘要。</li>
+              </ol>
+            </div>
+          </div>
         ) : (
           <div className="doc-list">
             {filteredDocs.map((doc) => {

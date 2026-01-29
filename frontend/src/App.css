@@ -502,6 +502,18 @@ textarea.input {
   gap: 8px;
 }
 
+.empty-template {
+  display: grid;
+  gap: 12px;
+}
+
+.template-card {
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff9f3;
+}
+
 .chunk-list {
   display: grid;
   gap: 10px;
