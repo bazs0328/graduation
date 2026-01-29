@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import re
 
 from app.db.models import Chunk, Document
 from app.db.session import get_db
@@ -172,24 +173,46 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         if forced_tool and tool_registry:
             results = []
         else:
-            return {"answer": "资料中未找到相关内容", "sources": []}
+            suggestions = _build_suggestions(request.query)
+            return {
+                "answer": "资料中未找到相关内容。",
+                "sources": [],
+                "retrieval": {
+                    "mode": "none",
+                    "reason": "no_candidates",
+                    "suggestions": suggestions,
+                },
+            }
 
     chunk_ids = [item["chunk_id"] for item in results]
     chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
     chunks_by_id = {chunk.id: (chunk.text or "") for chunk in chunks}
 
-    query_text = request.query.strip().lower()
+    query_tokens = _tokenize_query(request.query)
     matched_results = []
     for item in results:
         text = chunks_by_id.get(item["chunk_id"], "")
-        if query_text and query_text in text.lower():
+        score = _match_score(query_tokens, text)
+        if score >= 0.34 or (score > 0 and len(query_tokens) <= 2):
             matched_results.append(item)
 
+    match_mode = "exact" if matched_results else "semantic"
     if not matched_results:
         if forced_tool and tool_registry:
             matched_results = []
+        elif results:
+            matched_results = results[: min(len(results), request.top_k)]
         else:
-            return {"answer": "资料中未找到相关内容", "sources": []}
+            suggestions = _build_suggestions(request.query)
+            return {
+                "answer": "资料中未找到相关内容。",
+                "sources": [],
+                "retrieval": {
+                    "mode": "none",
+                    "reason": "no_exact_match",
+                    "suggestions": suggestions,
+                },
+            }
 
     context = ""
     if matched_results:
@@ -211,38 +234,55 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         if not context:
             return {"answer": "资料中未找到相关内容", "sources": []}
 
+    suggestions = _build_suggestions(request.query)
     tool_traces: list[dict] = []
+    prompted_query = _build_prompted_query(request.query, match_mode, suggestions)
     tools = list(tool_registry.values())
     try:
         if tools:
             answer, tool_traces = llm_client.generate_answer_with_tools(
-                request.query,
+                prompted_query,
                 context,
                 tools,
                 settings.llm_tool_max_calls,
                 forced_tool=forced_tool,
             )
         else:
-            answer = llm_client.generate_answer(request.query, context)
+            answer = llm_client.generate_answer(prompted_query, context)
     except Exception as exc:
         logger.warning("LLM generate failed in /chat, falling back to MockLLM: %s", exc)
         fallback = MockLLM()
         if tools:
             answer, tool_traces = fallback.generate_answer_with_tools(
-                request.query,
+                prompted_query,
                 context,
                 tools,
                 settings.llm_tool_max_calls,
                 forced_tool=forced_tool,
             )
         else:
-            answer = fallback.generate_answer(request.query, context)
+            answer = fallback.generate_answer(prompted_query, context)
     sources = [
-        {"chunk_id": item["chunk_id"], "document_id": item["document_id"], "score": item["score"]}
+        {
+            "chunk_id": item["chunk_id"],
+            "document_id": item["document_id"],
+            "score": item["score"],
+            "match_mode": match_mode,
+        }
         for item in matched_results
     ]
 
-    return {"answer": answer, "sources": sources, "tool_traces": tool_traces}
+    retrieval_reason = "exact_match" if match_mode == "exact" else "semantic_fallback"
+    return {
+        "answer": answer,
+        "sources": sources,
+        "tool_traces": tool_traces,
+        "retrieval": {
+            "mode": match_mode,
+            "reason": retrieval_reason,
+            "suggestions": suggestions,
+        },
+    }
 
 
 def _pick_forced_tool(query: str) -> str | None:
@@ -251,6 +291,85 @@ def _pick_forced_tool(query: str) -> str | None:
     if lowered.startswith("calc:") or trimmed.startswith("计算"):
         return "calc"
     return None
+
+
+STOPWORDS = {
+    "的",
+    "了",
+    "吗",
+    "呢",
+    "和",
+    "或",
+    "以及",
+    "就是",
+    "如何",
+    "怎么",
+    "什么",
+    "哪些",
+    "请",
+    "是否",
+    "能否",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+}
+
+
+def _tokenize_query(text: str) -> list[str]:
+    if not text:
+        return []
+    tokens = re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]{1,}", text.lower())
+    cleaned = [token for token in tokens if token and token not in STOPWORDS]
+    return cleaned
+
+
+def _match_score(query_tokens: list[str], text: str) -> float:
+    if not query_tokens or not text:
+        return 0.0
+    text_lower = text.lower()
+    common = [token for token in query_tokens if token in text_lower]
+    return len(common) / max(len(query_tokens), 1)
+
+
+def _build_suggestions(query: str) -> list[str]:
+    tokens = _tokenize_query(query)
+    if not tokens:
+        return []
+    keywords = []
+    for token in tokens:
+        if token not in keywords:
+            keywords.append(token)
+        if len(keywords) >= 3:
+            break
+    if not keywords:
+        return []
+    suggestions = []
+    if len(keywords) == 1:
+        suggestions.append(f"解释一下 {keywords[0]} 的核心概念")
+        suggestions.append(f"{keywords[0]} 的关键结论有哪些？")
+        suggestions.append(f"{keywords[0]} 的常见问题与误区")
+    else:
+        joined = "、".join(keywords)
+        suggestions.append(f"概括 {joined} 的重点内容")
+        suggestions.append(f"{joined} 之间的关系是什么？")
+        suggestions.append(f"基于资料解释 {keywords[0]}")
+    return suggestions
+
+
+def _build_prompted_query(query: str, match_mode: str, suggestions: list[str]) -> str:
+    if match_mode == "exact":
+        return query
+    suggestion_text = "；".join(suggestions[:3]) if suggestions else ""
+    return (
+        "请仅基于提供的资料回答，若资料不足请明确说明不足，并给出2-3条可改写的问题建议。\n"
+        f"问题：{query}\n"
+        f"建议示例：{suggestion_text}"
+    )
 
 
 @app.post("/sources/resolve", response_model=SourceResolveResponse)

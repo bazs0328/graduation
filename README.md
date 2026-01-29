@@ -83,6 +83,7 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '
 
 Notes:
 - 若启用工具链（LLM_TOOLS_ENABLED=1），/chat 会返回 `tool_traces` 记录工具调用轨迹。
+- 当资料无直接命中时，/chat 会基于语义召回给出候选并附改写建议。
 
 ### Tool calls (safe calc)
 
