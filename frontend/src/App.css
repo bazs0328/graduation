@@ -557,6 +557,128 @@ textarea.input {
   text-decoration: underline;
 }
 
+.alert.info {
+  background: #eef6ff;
+  color: #1c4d8a;
+  border: 1px solid #c7dcf6;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.code-input {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+.research-page h1 {
+  margin-bottom: 6px;
+}
+
+.research-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #fff2e7, #fff9f3);
+  border: 1px solid #f3dfcc;
+}
+
+.research-hero h2 {
+  margin: 6px 0 8px;
+  font-size: 1.35rem;
+}
+
+.research-hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.research-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(280px, 1.3fr) minmax(220px, 0.7fr);
+}
+
+.research-tips {
+  background: linear-gradient(180deg, #ffffff 0%, #faf3ea 100%);
+}
+
+.research-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.research-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fffaf6;
+  display: grid;
+  gap: 12px;
+}
+
+.research-item h3 {
+  margin: 0;
+}
+
+.research-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.research-detail-card {
+  background: linear-gradient(145deg, #fff6ef 0%, #ffffff 60%);
+}
+
+.research-entries {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.research-entry {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+  display: grid;
+  gap: 10px;
+}
+
+.research-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.research-entry-content {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.research-entry-extra {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+@media (max-width: 900px) {
+  .research-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 @media (max-width: 720px) {
   .topbar {

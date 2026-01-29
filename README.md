@@ -294,11 +294,13 @@ Notes:
 5) Load profile
 6) View learning path
 7) View dashboard (recent quizzes)
+8) Create a research notebook and append entries
 
 Notes:
 - 测验提交后展示得分/准确率/逐题结果、难度计划与推荐信息（来源 /profile/me）。
 - 学习路径基于 /profile/me 的 weak_concepts 与 last_quiz_summary 规则生成。
 - 仪表盘通过 /quizzes/recent 获取最近 5 次测验记录。
+- 研究记录页面要求填写会话 ID，并在 /research 中创建与追加条目。
 
 ### Phase 2 验收（端到端）
 

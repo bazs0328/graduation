@@ -10,6 +10,8 @@ import QuizPage from './pages/QuizPage';
 import LearningPathPage from './pages/LearningPath';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
+import ResearchListPage from './pages/ResearchListPage';
+import ResearchDetailPage from './pages/ResearchDetailPage';
 
 const navItems = [
   { to: '/', label: '首页' },
@@ -18,6 +20,7 @@ const navItems = [
   { to: '/chat', label: '问答' },
   { to: '/quiz', label: '测验' },
   { to: '/learning', label: '学习路径' },
+  { to: '/research', label: '研究' },
   { to: '/dashboard', label: '仪表盘' },
   { to: '/profile', label: '画像' },
 ];
@@ -87,6 +90,14 @@ function App() {
             <Route
               path="/learning"
               element={<LearningPathPage sessionId={sessionId} />}
+            />
+            <Route
+              path="/research"
+              element={<ResearchListPage sessionId={sessionId} />}
+            />
+            <Route
+              path="/research/:researchId"
+              element={<ResearchDetailPage sessionId={sessionId} />}
             />
             <Route
               path="/dashboard"

@@ -566,7 +566,7 @@
 - docker compose exec backend sh /app/scripts/dev_smoke.sh
 - docker compose exec backend pytest
 
-### [ ] FE-010 研究/Notebook 前端入口与记录页
+### [x] FE-010 研究/Notebook 前端入口与记录页
 **目标**
 提供研究/Notebook 的前端入口，让“突破链路”可视化与可回访。
 
@@ -587,3 +587,8 @@
 **风险与回滚**
 - 风险：页面复杂度提升
 - 回滚：保留入口但隐藏详情
+
+**验证方式**
+- npm --prefix frontend run lint
+- npm --prefix frontend run build
+- npm --prefix frontend run dev（访问 /research 与 /research/:id）

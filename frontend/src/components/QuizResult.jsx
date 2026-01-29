@@ -19,19 +19,22 @@ function getCorrectMeta(value) {
 }
 
 export default function QuizResult({ quiz, result, summary, showTitle = true }) {
-  if (!result) {
-    return null;
-  }
-
-  const questions = Array.isArray(quiz?.questions) ? quiz.questions : [];
   const [sourceMap, setSourceMap] = useState({});
   const [sourceStatus, setSourceStatus] = useState('');
   const [sourceError, setSourceError] = useState(null);
-  const questionsById = new Map(questions.map((item) => [item.question_id, item]));
+  const questions = useMemo(
+    () => (Array.isArray(quiz?.questions) ? quiz.questions : []),
+    [quiz],
+  );
+  const questionsById = useMemo(
+    () => new Map(questions.map((item) => [item.question_id, item])),
+    [questions],
+  );
+  const safeResult = result || {};
   const difficultyPlan = quiz?.difficulty_plan || {};
   const recommendationText = formatRecommendation(summary);
-  const perQuestion = Array.isArray(result.per_question_result)
-    ? result.per_question_result
+  const perQuestion = Array.isArray(safeResult.per_question_result)
+    ? safeResult.per_question_result
     : [];
   const allChunkIds = useMemo(() => {
     const ids = new Set();
@@ -45,6 +48,7 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
     return Array.from(ids);
   }, [questions]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!allChunkIds.length) {
       setSourceMap({});
@@ -74,6 +78,11 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
       active = false;
     };
   }, [allChunkIds]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  if (!result) {
+    return null;
+  }
 
   return (
     <div className="card">
@@ -81,15 +90,15 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
       <div className="grid-3">
         <div>
           <p className="label">得分</p>
-          <p className="metric">{result.score}</p>
+          <p className="metric">{safeResult.score}</p>
         </div>
         <div>
           <p className="label">准确率</p>
-          <p className="metric">{result.accuracy}</p>
+          <p className="metric">{safeResult.accuracy}</p>
         </div>
         <div>
           <p className="label">反馈</p>
-          <p className="subtle">{result.feedback_text}</p>
+          <p className="subtle">{safeResult.feedback_text}</p>
         </div>
       </div>
 
