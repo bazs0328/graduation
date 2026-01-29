@@ -105,7 +105,7 @@ def generate_summary(llm_client: LLMClient, context: str) -> SummaryResult:
     prompt = build_summary_prompt()
     response = llm_client.generate_answer(prompt, context)
     parsed = _parse_summary_response(response)
-    if parsed and _contains_cjk(parsed.summary):
+    if parsed and _contains_cjk(parsed.summary) and not _looks_like_verbatim(parsed.summary, context):
         return parsed
     return _fallback_summary(context, response)
 
@@ -180,6 +180,17 @@ def _summarize_from_context(context: str) -> str:
 
 def _contains_cjk(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _looks_like_verbatim(summary: str, context: str) -> bool:
+    if not summary or not context:
+        return False
+    if summary in context:
+        return True
+    if len(summary) < 60:
+        return False
+    sample = summary[:120]
+    return sample in context
 
 
 def _extract_title(context: str) -> str:
