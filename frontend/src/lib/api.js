@@ -108,6 +108,36 @@ export function getRecentQuizzes(limit = 5, sessionId) {
   );
 }
 
+export function createResearch(payload, sessionId) {
+  return request(
+    '/research',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    sessionId,
+  );
+}
+
+export function listResearch(sessionId) {
+  return request('/research', { method: 'GET' }, sessionId);
+}
+
+export function getResearchDetail(researchId, sessionId) {
+  return request(`/research/${researchId}`, { method: 'GET' }, sessionId);
+}
+
+export function appendResearchEntry(researchId, payload, sessionId) {
+  return request(
+    `/research/${researchId}/entries`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    sessionId,
+  );
+}
+
 export function getApiBaseUrl() {
   return API_BASE_URL;
 }
