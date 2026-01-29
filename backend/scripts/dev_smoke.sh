@@ -247,4 +247,59 @@ print(recent_raw)
 recent_data = json.loads(recent_raw)
 if not isinstance(recent_data.get("items"), list):
     raise SystemExit("recent quizzes missing items list")
+
+def research_flow(session_id: str) -> None:
+    headers = {"X-Session-Id": session_id}
+    step(f"Research create ({session_id})")
+    create_raw = http_post_json(
+        "/research",
+        {"title": "Smoke research", "summary": "Store traces and sources"},
+        headers=headers,
+    )
+    print(create_raw)
+    create_data = json.loads(create_raw)
+    research_id = create_data.get("research_id")
+    if not research_id:
+        raise SystemExit("research create missing research_id")
+
+    step(f"Research append ({session_id})")
+    entry_raw = http_post_json(
+        f"/research/{research_id}/entries",
+        {
+            "entry_type": "note",
+            "content": "First note",
+            "tool_traces": [{"tool_name": "calc", "input": {"expression": "2+2"}, "output": "4"}],
+            "sources": [
+                {
+                    "chunk_id": 1,
+                    "document_id": 1,
+                    "document_name": "sample.md",
+                    "text_preview": "Sample preview",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    print(entry_raw)
+    entry_data = json.loads(entry_raw)
+    if not entry_data.get("entry_id"):
+        raise SystemExit("research append missing entry_id")
+
+    step(f"Research list ({session_id})")
+    list_raw = http_get("/research", headers=headers)
+    print(list_raw)
+    list_data = json.loads(list_raw)
+    if not isinstance(list_data.get("items"), list):
+        raise SystemExit("research list missing items list")
+
+    step(f"Research detail ({session_id})")
+    detail_raw = http_get(f"/research/{research_id}", headers=headers)
+    print(detail_raw)
+    detail_data = json.loads(detail_raw)
+    entries = detail_data.get("entries")
+    if not isinstance(entries, list) or not entries:
+        raise SystemExit("research detail missing entries")
+
+
+research_flow("session-good")
 PY

@@ -105,18 +105,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_learner_profile_session_id", table_name="learner_profile")
     op.drop_table("learner_profile")
 
-    op.drop_index("ix_concept_stats_session_id", table_name="concept_stats")
     op.drop_table("concept_stats")
 
-    op.drop_index("ix_quiz_attempts_quiz_id", table_name="quiz_attempts")
     op.drop_table("quiz_attempts")
 
-    op.drop_index("ix_quiz_questions_quiz_id", table_name="quiz_questions")
     op.drop_table("quiz_questions")
 
-    op.drop_index("ix_quizzes_session_id", table_name="quizzes")
-    op.drop_index("ix_quizzes_document_id", table_name="quizzes")
     op.drop_table("quizzes")

@@ -526,7 +526,7 @@
 ## Backlog / 待规划（允许自动追加）
 > 这里的任务默认不自动执行，除非用户确认或被提升到“当前任务队列”。
 
-### [ ] REL-002 研究/Notebook 数据模型与接口（最小版）
+### [~] REL-002 研究/Notebook 数据模型与接口（最小版）
 **目标**
 将“研究过程与产物”持久化，支持可回访的研究记录。
 
@@ -547,6 +547,24 @@
 **风险与回滚**
 - 风险：迁移影响已有表
 - 回滚：隐藏入口，保留旧流程
+
+**验证方式**
+- docker compose up -d --build backend
+- docker compose exec backend alembic upgrade head
+- docker compose exec backend alembic downgrade -1
+- docker compose exec backend python - <<'PY'
+  from app.db.session import SessionLocal
+  from app.db import models
+  db = SessionLocal()
+  research = models.ResearchSession(session_id="verify", title="Verify", summary="Check insert")
+  db.add(research); db.commit(); db.refresh(research)
+  entry = models.ResearchEntry(research_id=research.id, entry_type="note", content="hello")
+  db.add(entry); db.commit(); db.refresh(entry)
+  print(f"research_id={research.id} entry_id={entry.id}")
+  db.close()
+  PY
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- docker compose exec backend pytest
 
 ### [ ] FE-010 研究/Notebook 前端入口与记录页
 **目标**
