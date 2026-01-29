@@ -15,7 +15,7 @@ import ResearchDetailPage from './pages/ResearchDetailPage';
 
 const navItems = [
   { to: '/', label: '首页' },
-  { to: '/upload', label: '上传资料' },
+  { to: '/upload', label: '资料管理' },
   { to: '/index', label: '索引' },
   { to: '/chat', label: '问答' },
   { to: '/quiz', label: '测验' },

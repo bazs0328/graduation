@@ -402,6 +402,90 @@ textarea.input {
   cursor: pointer;
 }
 
+.danger {
+  background: #fff2f0;
+  color: #b02a1b;
+  border: 1px solid #f1c1b8;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inline.spaced {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.doc-actions {
+  margin-top: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.doc-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.doc-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--bg-2);
+  display: grid;
+  gap: 12px;
+}
+
+.doc-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.doc-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.doc-chunks {
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.chunk-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chunk-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.chunk-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chunk-text {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .result-jump {
   display: flex;
   align-items: center;

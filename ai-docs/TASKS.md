@@ -526,7 +526,7 @@
 ## Backlog / 待规划（允许自动追加）
 > 这里的任务默认不自动执行，除非用户确认或被提升到“当前任务队列”。
 
-### [~] RAG-001 检索/问答体验强化（召回增强 + 可解释反馈 + 会话一致性 + 路径/Notebook 结构化）
+### [x] RAG-001 检索/问答体验强化（召回增强 + 可解释反馈 + 会话一致性 + 路径/Notebook 结构化）
 **目标**
 一次性提升问答体验的可用性与可解释性，避免“硬搜索”带来的失败体验。
 
@@ -558,6 +558,12 @@
 - docker compose exec backend pytest
 - npm --prefix frontend run lint
 - npm --prefix frontend run build
+
+**关键输出摘要**
+- dev_smoke.sh 覆盖 health/upload/index/search/chat/quiz/submit/profile/sources/quiz recent/research（2026-01-29）
+- pytest 4 passed（2026-01-29）
+- frontend lint 通过（2026-01-29）
+- frontend build 通过（2026-01-29）
 
 ### [x] REL-002 研究/Notebook 数据模型与接口（最小版）
 **目标**

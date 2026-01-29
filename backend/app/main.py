@@ -1,11 +1,12 @@
 import logging
 import os
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import re
 
 from app.db.models import Chunk, Document
@@ -48,7 +49,7 @@ def _load_cors_origins() -> list[str]:
     return ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
-app = FastAPI()
+app = FastAPI(docs_url="/api-docs", redoc_url="/api-redoc")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_load_cors_origins(),
@@ -136,6 +137,86 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "created_at": document.created_at.isoformat() if document.created_at else None,
         "chunk_count": chunk_count,
     }
+
+
+@app.get("/docs")
+def list_documents(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    total = db.query(func.count(Document.id)).scalar() or 0
+    rows = (
+        db.query(Document, func.count(Chunk.id))
+        .outerjoin(Chunk, Chunk.document_id == Document.id)
+        .group_by(Document.id)
+        .order_by(Document.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    items = []
+    for document, chunk_count in rows:
+        items.append(
+            {
+                "id": document.id,
+                "filename": document.filename,
+                "content_type": document.content_type,
+                "created_at": document.created_at.isoformat() if document.created_at else None,
+                "chunk_count": chunk_count,
+            }
+        )
+    return {"total": total, "items": items, "limit": limit, "offset": offset}
+
+
+@app.get("/docs/{doc_id}/chunks")
+def list_document_chunks(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    document = db.query(Document).filter(Document.id == doc_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    total = db.query(func.count(Chunk.id)).filter(Chunk.document_id == doc_id).scalar() or 0
+    rows = (
+        db.query(Chunk)
+        .filter(Chunk.document_id == doc_id)
+        .order_by(Chunk.chunk_index.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    items = []
+    for chunk in rows:
+        items.append(
+            {
+                "id": chunk.id,
+                "chunk_index": chunk.chunk_index,
+                "text": chunk.text,
+                "metadata": chunk.metadata_json or {},
+            }
+        )
+    return {
+        "document_id": doc_id,
+        "filename": document.filename,
+        "total": total,
+        "items": items,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@app.delete("/docs/{doc_id}")
+def delete_document(doc_id: int, db: Session = Depends(get_db)):
+    document = db.query(Document).filter(Document.id == doc_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    db.delete(document)
+    db.commit()
+    return {"status": "deleted", "document_id": doc_id}
 
 
 @app.post("/index/rebuild")

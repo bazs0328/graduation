@@ -45,6 +45,28 @@ export function uploadDocument(file, sessionId) {
   return request('/docs/upload', { method: 'POST', body: formData }, sessionId);
 }
 
+export function listDocuments(limit = 50, offset = 0, sessionId) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  return request(`/docs?${params.toString()}`, { method: 'GET' }, sessionId);
+}
+
+export function deleteDocument(docId, sessionId) {
+  return request(`/docs/${docId}`, { method: 'DELETE' }, sessionId);
+}
+
+export function listDocumentChunks(docId, limit = 20, offset = 0, sessionId) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  return request(
+    `/docs/${docId}/chunks?${params.toString()}`,
+    { method: 'GET' },
+    sessionId,
+  );
+}
+
 export function rebuildIndex(sessionId) {
   return request('/index/rebuild', { method: 'POST' }, sessionId);
 }
