@@ -253,6 +253,7 @@ class DocSummaryRequest(BaseModel):
 class DocSummaryTrace(BaseModel):
     prompt: str
     raw_output: str
+    keyword_raw_output: str
     used_fallback: bool
     fallback_reason: str
 
@@ -296,6 +297,7 @@ def generate_doc_summary(
                 debug=DocSummaryTrace(
                     prompt="",
                     raw_output="",
+                    keyword_raw_output="",
                     used_fallback=False,
                     fallback_reason="cached",
                 )
@@ -331,6 +333,7 @@ def generate_doc_summary(
         debug=DocSummaryTrace(
             prompt=trace.prompt,
             raw_output=trace.raw_output,
+            keyword_raw_output=trace.keyword_raw_output,
             used_fallback=trace.used_fallback,
             fallback_reason=trace.fallback_reason,
         )
