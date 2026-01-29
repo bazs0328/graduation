@@ -95,3 +95,30 @@ class LearnerProfile(Base):
     theta = Column(Float, nullable=True)
     frustration_score = Column(Integer, nullable=False, default=0)
     last_updated = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class ResearchSession(Base):
+    __tablename__ = "research_sessions"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String(64), nullable=False, index=True)
+    title = Column(String(255), nullable=True)
+    summary = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    entries = relationship("ResearchEntry", back_populates="research", cascade="all, delete-orphan")
+
+
+class ResearchEntry(Base):
+    __tablename__ = "research_entries"
+
+    id = Column(Integer, primary_key=True)
+    research_id = Column(Integer, ForeignKey("research_sessions.id"), nullable=False, index=True)
+    entry_type = Column(String(32), nullable=False)
+    content = Column(Text, nullable=False)
+    tool_traces_json = Column(JSON, nullable=True)
+    sources_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    research = relationship("ResearchSession", back_populates="entries")

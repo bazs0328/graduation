@@ -13,6 +13,14 @@ from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.schemas.quiz_recent import QuizRecentRequest, QuizRecentResponse
 from app.schemas.quiz_submit import QuizSubmitRequest, QuizSubmitResponse
+from app.schemas.research import (
+    ResearchCreateRequest,
+    ResearchCreateResponse,
+    ResearchDetailResponse,
+    ResearchEntryCreateRequest,
+    ResearchEntryResponse,
+    ResearchListResponse,
+)
 from app.schemas.source import SourceResolveRequest, SourceResolveResponse
 from app.services.document_parser import build_chunks, extract_text
 from app.services.index_manager import IndexManager
@@ -21,6 +29,13 @@ from app.services.provider_factory import build_embedder, build_llm_client
 from app.services.profile_service import build_profile_response
 from app.services.quiz_service import QuizSubmitError, generate_quiz, submit_quiz
 from app.services.quiz_recent_service import list_recent_quizzes
+from app.services.research_service import (
+    ResearchError,
+    add_research_entry,
+    create_research_session,
+    get_research_detail,
+    list_research_sessions,
+)
 from app.services.source_service import SourceResolveError, resolve_sources
 from app.services.tools import build_tool_registry
 from .settings import load_settings
@@ -255,6 +270,118 @@ def resolve_source_chunks(
 
 def get_session_id(x_session_id: str | None = Header(default=None)) -> str:
     return (x_session_id or "").strip() or "default"
+
+
+@app.post("/research", response_model=ResearchCreateResponse)
+def create_research(
+    request: ResearchCreateRequest,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    try:
+        research = create_research_session(db, session_id, request.title, request.summary)
+        return {
+            "research_id": research.id,
+            "session_id": research.session_id,
+            "title": research.title,
+            "summary": research.summary,
+            "created_at": research.created_at,
+            "updated_at": research.updated_at,
+        }
+    except ResearchError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )
+
+
+@app.post("/research/{research_id}/entries", response_model=ResearchEntryResponse)
+def append_research_entry(
+    research_id: int,
+    request: ResearchEntryCreateRequest,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    try:
+        entry = add_research_entry(
+            db,
+            session_id=session_id,
+            research_id=research_id,
+            entry_type=request.entry_type,
+            content=request.content,
+            tool_traces=request.tool_traces,
+            sources=request.sources,
+        )
+        return {
+            "entry_id": entry.id,
+            "research_id": entry.research_id,
+            "entry_type": entry.entry_type,
+            "content": entry.content,
+            "tool_traces": entry.tool_traces_json,
+            "sources": entry.sources_json,
+            "created_at": entry.created_at,
+        }
+    except ResearchError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )
+
+
+@app.get("/research", response_model=ResearchListResponse)
+def list_research(
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    items = list_research_sessions(db, session_id)
+    return {
+        "items": [
+            {
+                "research_id": research.id,
+                "title": research.title,
+                "summary": research.summary,
+                "entry_count": count,
+                "created_at": research.created_at,
+                "updated_at": research.updated_at,
+            }
+            for research, count in items
+        ]
+    }
+
+
+@app.get("/research/{research_id}", response_model=ResearchDetailResponse)
+def research_detail(
+    research_id: int,
+    db: Session = Depends(get_db),
+    session_id: str = Depends(get_session_id),
+):
+    try:
+        research, entries = get_research_detail(db, session_id, research_id)
+        return {
+            "research_id": research.id,
+            "session_id": research.session_id,
+            "title": research.title,
+            "summary": research.summary,
+            "created_at": research.created_at,
+            "updated_at": research.updated_at,
+            "entries": [
+                {
+                    "entry_id": entry.id,
+                    "research_id": entry.research_id,
+                    "entry_type": entry.entry_type,
+                    "content": entry.content,
+                    "tool_traces": entry.tool_traces_json,
+                    "sources": entry.sources_json,
+                    "created_at": entry.created_at,
+                }
+                for entry in entries
+            ],
+        }
+    except ResearchError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.message, "details": exc.details},
+        )
 
 
 @app.get("/profile/me", response_model=ProfileResponse)
