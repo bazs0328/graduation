@@ -6,6 +6,7 @@ export default function ChatPage({ sessionId }) {
   const location = useLocation();
   const [query, setQuery] = useState('');
   const [topK, setTopK] = useState(5);
+  const [documentId, setDocumentId] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState(null);
@@ -18,9 +19,14 @@ export default function ChatPage({ sessionId }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const preset = params.get('q');
+    const doc = params.get('doc');
     if (preset) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery(preset);
+    }
+    if (doc && Number.isInteger(Number(doc))) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDocumentId(Number(doc));
     }
   }, [location.search]);
 
@@ -42,7 +48,7 @@ export default function ChatPage({ sessionId }) {
     setSourceError(null);
     setShowTools(false);
     try {
-      const result = await chat(query.trim(), Number(topK), sessionId);
+      const result = await chat(query.trim(), Number(topK), sessionId, documentId);
       setAnswer(result);
       setStatus('');
       const chunkIds = (result?.sources || [])
@@ -96,6 +102,11 @@ export default function ChatPage({ sessionId }) {
               onChange={(event) => setTopK(event.target.value)}
             />
           </label>
+          {documentId ? (
+            <p className="subtle">当前资料：文档 {documentId}</p>
+          ) : (
+            <p className="subtle">当前为全库提问。</p>
+          )}
           <button className="primary" type="submit">发送</button>
         </form>
         <p className="status">{status}</p>

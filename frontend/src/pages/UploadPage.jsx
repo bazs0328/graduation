@@ -328,7 +328,9 @@ export default function UploadPage({ sessionId, documentId, setDocumentId }) {
                                 className="ghost"
                                 type="button"
                                 key={`${item}-${index}`}
-                                onClick={() => navigate(`/chat?q=${encodeURIComponent(item)}`)}
+                                onClick={() =>
+                                  navigate(`/chat?q=${encodeURIComponent(item)}&doc=${doc.id}`)
+                                }
                               >
                                 {item}
                               </button>

@@ -82,12 +82,16 @@ export function rebuildIndex(sessionId) {
   return request('/index/rebuild', { method: 'POST' }, sessionId);
 }
 
-export function chat(query, topK, sessionId) {
+export function chat(query, topK, sessionId, documentId) {
   return request(
     '/chat',
     {
       method: 'POST',
-      body: JSON.stringify({ query, top_k: topK }),
+      body: JSON.stringify({
+        query,
+        top_k: topK,
+        document_id: Number.isInteger(documentId) ? documentId : null,
+      }),
     },
     sessionId,
   );

@@ -230,6 +230,7 @@ def rebuild_index(db: Session = Depends(get_db)):
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int = Field(5, ge=1)
+    document_id: int | None = None
 
 
 @app.post("/search")
@@ -237,13 +238,14 @@ def search(request: SearchRequest, db: Session = Depends(get_db)):
     if not index_manager.is_ready():
         raise HTTPException(status_code=409, detail="Index not built. Call POST /index/rebuild first.")
 
-    results = index_manager.search(request.query, request.top_k, db)
+    results = index_manager.search(request.query, request.top_k, db, request.document_id)
     return results
 
 
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int = Field(5, ge=1)
+    document_id: int | None = None
 
 
 class DocSummaryRequest(BaseModel):
@@ -357,7 +359,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                     },
                 }
 
-    results = index_manager.search(request.query, request.top_k, db)
+    results = index_manager.search(request.query, request.top_k, db, request.document_id)
     if not results:
         if forced_tool and tool_registry:
             results = []
@@ -374,7 +376,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 "sources": [],
                 "retrieval": {
                     "mode": "none",
-                    "reason": "no_candidates",
+                    "reason": "doc_filter_no_candidates" if request.document_id else "no_candidates",
                     "suggestions": suggestions,
                 },
             }

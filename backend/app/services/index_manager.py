@@ -86,7 +86,13 @@ class IndexManager:
     def is_ready(self) -> bool:
         return self.index is not None
 
-    def search(self, query: str, top_k: int, db: Session) -> List[Dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int,
+        db: Session,
+        document_id: int | None = None,
+    ) -> List[Dict[str, Any]]:
         if self.index is None:
             return []
 
@@ -94,7 +100,10 @@ class IndexManager:
             return []
 
         vectors = self.embedder.embed_texts([query])
-        k = min(top_k, self.index.ntotal)
+        if document_id is not None:
+            k = min(max(top_k * 5, top_k), self.index.ntotal)
+        else:
+            k = min(top_k, self.index.ntotal)
         distances, indices = self.index.search(vectors, k)
 
         ordered_indices = [int(idx) for idx in indices[0] if idx >= 0]
@@ -127,6 +136,10 @@ class IndexManager:
                     "metadata": chunk.metadata_json,
                 }
             )
+
+        if document_id is not None:
+            filtered = [item for item in results if item["document_id"] == document_id]
+            return filtered[:top_k]
 
         if len(results) <= 1:
             return results
