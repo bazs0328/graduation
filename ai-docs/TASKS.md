@@ -585,6 +585,34 @@
 **验证记录**
 - docker compose up -d --build backend
 - docker compose exec backend sh /app/scripts/dev_smoke.sh（2026-01-30：/chat 返回 structured 结构，evidence/sources 仅保留命中 chunk）
+
+### [ ] REL-005 索引自动重建：文档变更与启动时自触发
+**目标**
+在新增/删除文档与服务启动时自动重建索引，减少手动操作。
+
+**交付物**
+- 文档新增/删除后自动触发索引重建
+- 服务启动时自动检测并重建索引
+- 相关日志与失败提示（可追踪）
+
+**验收**
+- 上传/删除文档后无需手动调用 /index/rebuild 即可检索
+- 重启服务后 /search 可用
+- dev_smoke 覆盖并通过
+
+**依赖**
+- 现有上传/删除/索引链路
+
+**风险与回滚**
+- 风险：启动耗时增加、并发重建引发性能波动
+- 回滚：关闭自动重建开关，恢复手动触发
+
+**验证方式**
+- docker compose exec backend sh /app/scripts/dev_smoke.sh
+- 重启后 curl /search 验证
+
+---
+
 ### [ ] LLM-UX-003 测验链路：LLM 题目质量与解释强化
 **目标**
 让测验体现 LLM 价值，减少模板感，提升可用性。
