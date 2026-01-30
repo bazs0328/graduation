@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from sqlalchemy import func
 import re
 
 from app.db.models import Chunk, Document
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.schemas.profile import ProfileResponse
 from app.schemas.quiz_generate import QuizGenerateRequest, QuizGenerateResponse
 from app.schemas.quiz_recent import QuizRecentRequest, QuizRecentResponse
@@ -75,6 +75,38 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 def load_index_on_startup():
     index_manager.load_if_exists()
+    if not settings.auto_rebuild_index:
+        return
+    db = SessionLocal()
+    try:
+        if index_manager.needs_rebuild(db):
+            index_manager.rebuild_with_lock(
+                db,
+                reason="startup",
+                debounce_seconds=0.0,
+                force=True,
+            )
+    except Exception:
+        logger.exception("Index auto-rebuild on startup failed.")
+    finally:
+        db.close()
+
+
+def _schedule_index_rebuild(reason: str) -> None:
+    if not settings.auto_rebuild_index:
+        return
+    db = SessionLocal()
+    try:
+        index_manager.rebuild_with_lock(
+            db,
+            reason=reason,
+            debounce_seconds=settings.index_rebuild_debounce_seconds,
+            force=False,
+        )
+    except Exception:
+        logger.exception("Index auto-rebuild failed (%s).", reason)
+    finally:
+        db.close()
 
 
 @app.get("/health")
@@ -86,6 +118,7 @@ def health():
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
@@ -117,6 +150,8 @@ async def upload_document(
 
     db.add_all(chunk_rows)
     db.commit()
+    if background_tasks is not None:
+        background_tasks.add_task(_schedule_index_rebuild, "upload")
 
     return {
         "document_id": document.id,
@@ -213,19 +248,31 @@ def list_document_chunks(
 
 
 @app.delete("/docs/{doc_id}")
-def delete_document(doc_id: int, db: Session = Depends(get_db)):
+def delete_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+):
     document = db.query(Document).filter(Document.id == doc_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(document)
     db.commit()
     summary_cache.invalidate(doc_id)
+    if background_tasks is not None:
+        background_tasks.add_task(_schedule_index_rebuild, "delete")
     return {"status": "deleted", "document_id": doc_id}
 
 
 @app.post("/index/rebuild")
 def rebuild_index(db: Session = Depends(get_db)):
-    return index_manager.rebuild(db)
+    result = index_manager.rebuild_with_lock(
+        db,
+        reason="manual",
+        debounce_seconds=0.0,
+        force=True,
+    )
+    return result or {"status": "skipped"}
 
 
 class SearchRequest(BaseModel):

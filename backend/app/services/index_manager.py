@@ -1,9 +1,12 @@
 import json
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
 import faiss
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import Chunk
@@ -21,6 +24,8 @@ class IndexManager:
         self.mapping_path = Path(mapping_path)
         self.index = None
         self.mapping: List[Dict[str, Any]] = []
+        self._rebuild_lock = threading.Lock()
+        self._last_rebuild_at = 0.0
 
     def load_if_exists(self) -> bool:
         if not (self.index_path.exists() and self.mapping_path.exists()):
@@ -49,6 +54,14 @@ class IndexManager:
             self.index.ntotal,
         )
         return True
+
+    def needs_rebuild(self, db: Session) -> bool:
+        chunk_total = db.query(func.count(Chunk.id)).scalar() or 0
+        if self.index is None:
+            return True
+        if len(self.mapping) != chunk_total:
+            return True
+        return False
 
     def rebuild(self, db: Session) -> Dict[str, Any]:
         chunks = db.query(Chunk).order_by(Chunk.id).all()
@@ -82,6 +95,35 @@ class IndexManager:
             "dim": self.dim,
             "index_path": str(self.index_path),
         }
+
+    def rebuild_with_lock(
+        self,
+        db: Session,
+        reason: str,
+        debounce_seconds: float = 0.0,
+        force: bool = False,
+    ) -> Dict[str, Any] | None:
+        if self._rebuild_lock.locked():
+            logger.info("Skip index rebuild; already running (%s).", reason)
+            return None
+        now = time.monotonic()
+        if not force and debounce_seconds > 0:
+            if (now - self._last_rebuild_at) < debounce_seconds:
+                logger.info("Skip index rebuild; debounce active (%s).", reason)
+                return None
+        if not self._rebuild_lock.acquire(blocking=False):
+            logger.info("Skip index rebuild; lock unavailable (%s).", reason)
+            return None
+        try:
+            result = self.rebuild(db)
+            self._last_rebuild_at = time.monotonic()
+            logger.info("Index rebuilt (%s).", reason)
+            return result
+        except Exception:
+            logger.exception("Index rebuild failed (%s).", reason)
+            return None
+        finally:
+            self._rebuild_lock.release()
 
     def is_ready(self) -> bool:
         return self.index is not None
