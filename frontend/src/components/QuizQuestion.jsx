@@ -63,7 +63,10 @@ export default function QuizQuestion({ question, index, value, onChange }) {
           </label>
         </div>
       )}
-      {question.type === 'short' && (
+      {(question.type === 'short'
+        || question.type === 'fill_blank'
+        || question.type === 'calculation'
+        || question.type === 'written') && (
         <label className="field">
           <span>你的回答</span>
           <textarea

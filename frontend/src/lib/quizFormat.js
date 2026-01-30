@@ -2,6 +2,9 @@ export const TYPE_LABELS = {
   single: '单选',
   judge: '判断',
   short: '简答',
+  fill_blank: '填空',
+  calculation: '计算',
+  written: '问答',
 };
 
 export const DIFFICULTY_LABELS = {
@@ -84,6 +87,10 @@ export function formatUserAnswer(type, answer, options) {
     const text = normalizeText(answer, ['text']);
     return text || EMPTY_ANSWER_TEXT;
   }
+  if (type === 'fill_blank' || type === 'calculation' || type === 'written') {
+    const text = normalizeText(answer, ['text', 'value']);
+    return text || EMPTY_ANSWER_TEXT;
+  }
   if (answer == null) {
     return EMPTY_ANSWER_TEXT;
   }
@@ -104,6 +111,10 @@ export function formatExpectedAnswer(type, answer, options) {
   }
   if (type === 'short') {
     const text = normalizeText(answer, ['reference_answer', 'text']);
+    return text || '暂无参考答案';
+  }
+  if (type === 'fill_blank' || type === 'calculation' || type === 'written') {
+    const text = normalizeText(answer, ['reference_answer', 'value', 'text']);
     return text || '暂无参考答案';
   }
   if (answer == null) {

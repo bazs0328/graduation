@@ -154,6 +154,33 @@ export default function QuizResult({ quiz, result, summary, showTitle = true }) 
               {question?.explanation && (
                 <p className="hint">解析：{question.explanation}</p>
               )}
+              {question?.difficulty_reason && (
+                <p className="hint">难度理由：{question.difficulty_reason}</p>
+              )}
+              {question?.key_points?.length ? (
+                <div className="hint">
+                  <span className="label">考点</span>
+                  <div className="inline">
+                    {question.key_points.map((point, idx) => (
+                      <span className="badge" key={`${point}-${idx}`}>
+                        {point}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {question?.review_suggestion && (
+                <p className="hint">复习建议：{question.review_suggestion}</p>
+              )}
+              {question?.next_step && (
+                <p className="hint">下一步行动：{question.next_step}</p>
+              )}
+              {question?.validation && (
+                <p className="hint">
+                  校验：{question.validation.kb_coverage || 'n/a'} ·{' '}
+                  {question.validation.extension_points || 'n/a'}
+                </p>
+              )}
               <div className="sources">
                 <p className="label">引用来源</p>
                 {question?.source_chunk_ids?.length ? (

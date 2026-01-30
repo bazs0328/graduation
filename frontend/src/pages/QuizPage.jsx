@@ -8,6 +8,9 @@ const DEFAULT_TYPES = {
   single: true,
   judge: true,
   short: true,
+  fill_blank: true,
+  calculation: true,
+  written: true,
 };
 
 export default function QuizPage({ sessionId, documentId }) {
@@ -82,7 +85,12 @@ export default function QuizPage({ sessionId, documentId }) {
             userAnswer = stored ? { choice: stored } : null;
           } else if (question.type === 'judge') {
             userAnswer = typeof stored === 'boolean' ? { value: stored } : null;
-          } else if (question.type === 'short') {
+          } else if (
+            question.type === 'short'
+            || question.type === 'fill_blank'
+            || question.type === 'calculation'
+            || question.type === 'written'
+          ) {
             userAnswer = stored ? { text: stored } : null;
           }
           return {
