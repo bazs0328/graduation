@@ -586,7 +586,7 @@
 - docker compose up -d --build backend
 - docker compose exec backend sh /app/scripts/dev_smoke.sh（2026-01-30：/chat 返回 structured 结构，evidence/sources 仅保留命中 chunk）
 
-### [~] REL-005 索引自动重建：文档变更与启动时自触发
+### [x] REL-005 索引自动重建：文档变更与启动时自触发
 **目标**
 在新增/删除文档与服务启动时自动重建索引，减少手动操作。
 
