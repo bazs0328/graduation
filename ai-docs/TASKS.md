@@ -583,7 +583,8 @@
 
 
 **验证记录**
-- docker compose exec backend sh /app/scripts/dev_smoke.sh（本机 Docker 不可用，待用户运行）
+- docker compose up -d --build backend
+- docker compose exec backend sh /app/scripts/dev_smoke.sh（2026-01-30：/chat 返回 structured 结构，evidence/sources 仅保留命中 chunk）
 ### [ ] LLM-UX-003 测验链路：LLM 题目质量与解释强化
 **目标**
 让测验体现 LLM 价值，减少模板感，提升可用性。
