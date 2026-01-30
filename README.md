@@ -102,18 +102,36 @@ Notes:
 ### Search (no LLM)
 
 ```
-curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
+curl -X POST http://localhost:8000/search -H "Content-Type: application/json" -d '{"query":"sample","top_k":5,"document_id":1}'
 ```
 
 ### Chat (minimal RAG)
 
 ```
-curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5}'
+curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"query":"sample","top_k":5,"document_id":1}'
 ```
 
 Notes:
 - 若启用工具链（LLM_TOOLS_ENABLED=1），/chat 会返回 `tool_traces` 记录工具调用轨迹。
 - 当资料无直接命中时，/chat 会基于语义召回给出候选并附改写建议。
+- document_id 传入时仅在该文档范围内检索；若向量召回为空，系统会在文档内进行原词兜底匹配。
+
+Response example (structured):
+
+```
+{
+  "answer": "叶公好龙，比喻表面上爱好某事物，实际上并不是真的爱好。",
+  "structured": {
+    "conclusion": "叶公好龙，比喻表面上爱好某事物，实际上并不是真的爱好。",
+    "evidence": [{"chunk_id": 8, "quote": "叶公非常喜欢龙，他在衣带钩上雕着龙..."}],
+    "reasoning": "资料显示叶公只喜装饰龙，真龙现身便惊恐逃跑。",
+    "next_steps": ["解释一下 叶公 的核心概念", "叶公 的关键结论有哪些？"]
+  },
+  "sources": [{"chunk_id": 8, "document_id": 8, "score": 0.12, "match_mode": "exact"}],
+  "tool_traces": [],
+  "retrieval": {"mode": "exact", "reason": "exact_match", "suggestions": ["解释一下 叶公 的核心概念"]}
+}
+```
 
 ### Tool calls (safe calc)
 

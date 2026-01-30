@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -330,6 +331,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 output = tool.run({"expression": expr})
                 return {
                     "answer": f"计算结果：{output}",
+                    "structured": _build_fallback_structure(f"计算结果：{output}", []),
                     "sources": [],
                     "tool_traces": [
                         {"tool_name": forced_tool, "input": {"expression": expr}, "output": output, "error": None}
@@ -343,6 +345,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             except ToolRunError as exc:
                 return {
                     "answer": f"计算失败：{exc}",
+                    "structured": _build_fallback_structure(f"计算失败：{exc}", []),
                     "sources": [],
                     "tool_traces": [
                         {
@@ -377,6 +380,10 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 answer = MockLLM().generate_answer(prompted_query, "")
             return {
                 "answer": answer or "资料中未找到相关内容。",
+                "structured": _build_fallback_structure(
+                    answer or "资料中未找到相关内容。",
+                    suggestions,
+                ),
                 "sources": [],
                 "retrieval": {
                     "mode": "none",
@@ -419,7 +426,11 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 break
         context = "\n\n".join(context_parts).strip()
         if not context:
-            return {"answer": "资料中未找到相关内容", "sources": []}
+            return {
+                "answer": "资料中未找到相关内容",
+                "structured": _build_fallback_structure("资料中未找到相关内容", suggestions),
+                "sources": [],
+            }
 
     suggestions = _build_suggestions(request.query)
     tool_traces: list[dict] = []
@@ -458,6 +469,17 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         }
         for item in matched_results
     ]
+    structured = _build_structured_answer(
+        llm_client=llm_client,
+        query=request.query,
+        match_mode=match_mode,
+        answer=answer,
+        suggestions=suggestions,
+        sources=matched_results,
+        chunks_by_id=chunks_by_id,
+    )
+    if structured and structured.get("conclusion"):
+        answer = structured["conclusion"]
 
     if doc_fallback_used:
         retrieval_reason = (
@@ -467,6 +489,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         retrieval_reason = "exact_match" if match_mode == "exact" else "semantic_fallback"
     return {
         "answer": answer,
+        "structured": structured,
         "sources": sources,
         "tool_traces": tool_traces,
         "retrieval": {
@@ -483,6 +506,145 @@ def _pick_forced_tool(query: str) -> str | None:
     if lowered.startswith("calc:") or trimmed.startswith("计算"):
         return "calc"
     return None
+
+
+def _build_structured_answer(
+    llm_client,
+    query: str,
+    match_mode: str,
+    answer: str,
+    suggestions: list[str],
+    sources: list[dict],
+    chunks_by_id: dict[int, str],
+) -> dict:
+    if not answer:
+        return _build_fallback_structure("资料中未找到相关内容", suggestions)
+    if not sources:
+        return _build_fallback_structure(answer, suggestions)
+
+    prompt = _build_structured_prompt(query, match_mode, suggestions, sources, chunks_by_id)
+    try:
+        raw = llm_client.generate_answer(f"RAW_JSON:{prompt}", "")
+    except Exception:
+        return _build_fallback_structure(answer, suggestions, sources, chunks_by_id)
+    parsed = _parse_structured_json(raw, allowed_chunk_ids={item["chunk_id"] for item in sources})
+    if not parsed:
+        return _build_fallback_structure(answer, suggestions, sources, chunks_by_id)
+    if not parsed.get("next_steps"):
+        parsed["next_steps"] = suggestions[:3]
+    if not parsed.get("conclusion"):
+        parsed["conclusion"] = answer
+    if not parsed.get("evidence"):
+        parsed["evidence"] = _build_evidence_fallback(sources, chunks_by_id)
+    return parsed
+
+
+def _build_structured_prompt(
+    query: str,
+    match_mode: str,
+    suggestions: list[str],
+    sources: list[dict],
+    chunks_by_id: dict[int, str],
+) -> str:
+    source_lines = []
+    for item in sources[:6]:
+        chunk_id = item["chunk_id"]
+        text = (chunks_by_id.get(chunk_id, "") or "")[:160].replace("\n", " ")
+        source_lines.append(f"- chunk_id={chunk_id}: {text}")
+    source_text = "\n".join(source_lines)
+    suggestion_text = "；".join(suggestions[:3]) if suggestions else ""
+    return (
+        "请根据资料片段与问题，输出结构化回答（只输出JSON，不要其他文本）。\n"
+        "JSON结构：\n"
+        "{"
+        "\"conclusion\":\"结论（1-2句）\","
+        "\"evidence\":[{\"chunk_id\":8,\"quote\":\"引用资料原句片段\"}],"
+        "\"reasoning\":\"推理过程（1-3句）\","
+        "\"next_steps\":[\"下一步建议1\",\"下一步建议2\"]"
+        "}\n"
+        "要求：\n"
+        "1) evidence 的 chunk_id 必须来自提供的片段列表；\n"
+        "2) reasoning 必须基于证据，不要引入资料外信息；\n"
+        "3) 若资料不足，conclusion 需明确说明并给出 next_steps；\n"
+        "4) 全部使用中文。\n"
+        f"问题：{query}\n"
+        f"检索模式：{match_mode}\n"
+        f"改写建议：{suggestion_text}\n"
+        "资料片段：\n"
+        f"{source_text}\n"
+    )
+
+
+def _parse_structured_json(raw: str, allowed_chunk_ids: set[int]) -> dict | None:
+    if not raw:
+        return None
+    raw = raw.strip()
+    payload = None
+    if raw.startswith("{") and raw.endswith("}"):
+        payload = raw
+    else:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            payload = match.group(0)
+    if not payload:
+        return None
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    conclusion = (data.get("conclusion") or "").strip()
+    reasoning = (data.get("reasoning") or "").strip()
+    next_steps = data.get("next_steps") or []
+    if isinstance(next_steps, str):
+        next_steps = [next_steps]
+    evidence = data.get("evidence") or []
+    if isinstance(evidence, dict):
+        evidence = [evidence]
+    cleaned_evidence = []
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        chunk_id = item.get("chunk_id")
+        quote = (item.get("quote") or "").strip()
+        if not isinstance(chunk_id, int) or chunk_id not in allowed_chunk_ids:
+            continue
+        if not quote:
+            continue
+        cleaned_evidence.append({"chunk_id": chunk_id, "quote": quote})
+    return {
+        "conclusion": conclusion,
+        "evidence": cleaned_evidence,
+        "reasoning": reasoning,
+        "next_steps": [step for step in next_steps if isinstance(step, str) and step.strip()],
+    }
+
+
+def _build_evidence_fallback(sources: list[dict], chunks_by_id: dict[int, str]) -> list[dict]:
+    evidence = []
+    for item in sources[:3]:
+        chunk_id = item["chunk_id"]
+        text = (chunks_by_id.get(chunk_id, "") or "").strip()
+        if not text:
+            continue
+        evidence.append({"chunk_id": chunk_id, "quote": text[:120]})
+    return evidence
+
+
+def _build_fallback_structure(
+    conclusion: str,
+    suggestions: list[str],
+    sources: list[dict] | None = None,
+    chunks_by_id: dict[int, str] | None = None,
+) -> dict:
+    evidence = []
+    if sources and chunks_by_id:
+        evidence = _build_evidence_fallback(sources, chunks_by_id)
+    return {
+        "conclusion": conclusion,
+        "evidence": evidence,
+        "reasoning": "",
+        "next_steps": suggestions[:3],
+    }
 
 
 def _fallback_doc_results(
