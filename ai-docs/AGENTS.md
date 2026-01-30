@@ -97,6 +97,7 @@ Agent 在修改代码时必须遵守：
 - `scripts/dev_smoke.sh`（若存在，优先跑）
 - `pytest`（若存在）
 - 关键接口 curl 验证（至少覆盖本次任务新增/修改接口）
+- 前端 E2E（如涉及页面/交互/路由/样式变更）：`cd frontend && npm run test:e2e`（可选 UI：`npm run test:e2e:ui`）
 
 如果涉及数据库迁移（Alembic），必须额外验证：
 - `alembic upgrade head` 成功

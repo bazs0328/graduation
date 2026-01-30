@@ -120,7 +120,47 @@ export default function ChatPage({ sessionId }) {
         <h2>回答</h2>
         {answer ? (
           <>
-            <p className="answer">{answer.answer}</p>
+            {answer.structured?.conclusion ? (
+              <div className="answer-structured">
+                <div className="structured-section">
+                  <p className="label">结论</p>
+                  <p className="answer">{answer.structured.conclusion}</p>
+                </div>
+                <div className="structured-section">
+                  <p className="label">证据</p>
+                  {answer.structured.evidence?.length ? (
+                    <ul className="list">
+                      {answer.structured.evidence.map((item, index) => (
+                        <li key={`${item.chunk_id}-${index}`}>
+                          <span className="badge">片段 {item.chunk_id}</span>{' '}
+                          {item.quote}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="subtle">暂无可用证据。</p>
+                  )}
+                </div>
+                <div className="structured-section">
+                  <p className="label">推理</p>
+                  <p className="subtle">{answer.structured.reasoning || '暂无推理信息。'}</p>
+                </div>
+                <div className="structured-section">
+                  <p className="label">下一步</p>
+                  {answer.structured.next_steps?.length ? (
+                    <ul className="list">
+                      {answer.structured.next_steps.map((item, index) => (
+                        <li key={`${item}-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="subtle">暂无建议。</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="answer">{answer.answer}</p>
+            )}
             {answer.retrieval && (
               <div className="retrieval-meta">
                 <span className="badge">

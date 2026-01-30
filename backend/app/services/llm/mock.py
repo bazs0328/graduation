@@ -11,6 +11,8 @@ class MockLLM(LLMClient):
         self.max_points = max_points
 
     def generate_answer(self, query: str, context: str) -> str:
+        if query.startswith("RAW_JSON:"):
+            return "{\"conclusion\":\"资料中未找到相关内容\",\"evidence\":[],\"reasoning\":\"\",\"next_steps\":[]}"
         cleaned = context.strip()
         if not cleaned:
             return "资料中未找到相关内容"

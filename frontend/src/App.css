@@ -239,6 +239,16 @@ textarea.input {
   line-height: 1.6;
 }
 
+.answer-structured {
+  display: grid;
+  gap: 14px;
+}
+
+.structured-section {
+  display: grid;
+  gap: 6px;
+}
+
 .sources {
   margin-top: 12px;
 }

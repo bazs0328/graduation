@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from typing import Any, Tuple
 
@@ -26,12 +27,21 @@ class RealLLMClient(LLMClient):
         self.max_tokens = max_tokens
 
     def generate_answer(self, query: str, context: str) -> str:
+        raw_json = False
+        if query.startswith("RAW_JSON:"):
+            raw_json = True
+            query = query[len("RAW_JSON:"):].lstrip()
+
         cleaned = (context or "").strip()
-        if not cleaned:
+        if not cleaned and not raw_json:
             return "资料中未找到相关内容"
 
-        system_prompt = "你是学习助手。请仅基于提供的资料回答问题，避免引入资料之外的信息。"
-        user_prompt = f"问题：{query}\n\n资料：\n{cleaned}\n\n请用简洁中文回答。"
+        if raw_json:
+            system_prompt = "你是严格的JSON生成器。只输出JSON，不要任何多余文本。"
+            user_prompt = query
+        else:
+            system_prompt = "你是学习助手。请仅基于提供的资料回答问题，避免引入资料之外的信息。"
+            user_prompt = f"问题：{query}\n\n资料：\n{cleaned}\n\n请用简洁中文回答。"
         payload = {
             "model": self.model,
             "messages": [
@@ -39,7 +49,7 @@ class RealLLMClient(LLMClient):
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.2,
-            "max_tokens": self.max_tokens,
+            "max_tokens": self.max_tokens if not raw_json else max(self.max_tokens, 800),
         }
 
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -56,6 +66,12 @@ class RealLLMClient(LLMClient):
             raise RuntimeError("LLM response missing choices.")
         message = choices[0].get("message") or {}
         content = (message.get("content") or "").strip()
+        if raw_json and not content:
+            reasoning = (message.get("reasoning_content") or "").strip()
+            if reasoning:
+                matches = re.findall(r"\{.*\}", reasoning, re.DOTALL)
+                if matches:
+                    content = matches[-1].strip()
         if not content:
             raise RuntimeError("LLM response missing content.")
         return content
