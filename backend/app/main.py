@@ -1022,6 +1022,7 @@ def quiz_generate(
         types=[item.value for item in request.types],
         focus_concepts=request.focus_concepts,
         llm_client=llm_client,
+        llm_timeout=settings.llm_quiz_timeout,
     )
 
 

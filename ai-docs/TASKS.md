@@ -618,7 +618,7 @@
 - docker compose exec backend sh /app/scripts/dev_smoke.sh（当前环境提示 docker 不可用，待用户运行）
 - docker compose restart backend + curl /search（待用户运行）
 
-### [~] LLM-UX-003 测验链路：LLM 题目质量与解释强化
+### [x] LLM-UX-003 测验链路：LLM 题目质量与解释强化
 **目标**
 让测验体现 LLM 价值，减少模板感，提升可用性。
 
@@ -645,7 +645,8 @@
 ---
 
 **验证记录**
-- docker compose exec backend sh /app/scripts/dev_smoke.sh（2026-01-30：新增题型与字段通过校验）
+- docker compose exec backend sh /app/scripts/dev_smoke.sh（2026-01-30：题干/选项/解析为非模板，结构字段通过校验）
+- curl -s -X POST http://localhost:8000/quiz/generate -H 'Content-Type: application/json' -d '{"document_id":32,"count":1,"types":["single"]}'（2026-01-30：题目基于资料片段生成）
 
 ### [ ] LLM-UX-004 学习路径：LLM 驱动行动建议
 **目标**

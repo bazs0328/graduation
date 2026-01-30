@@ -18,9 +18,11 @@ class Settings:
     llm_provider: str
     llm_base_url: str
     llm_model: str
+    llm_json_model: str
     llm_embedding_model: str
     llm_embedding_dim: Optional[int]
     llm_timeout: float
+    llm_quiz_timeout: float
     llm_max_tokens: int
     deepseek_api_key: str
     llm_tools_enabled: bool
@@ -69,10 +71,12 @@ def load_settings() -> Settings:
     llm_provider = os.getenv("LLM_PROVIDER", "deepseek")
     llm_base_url = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
     llm_model = os.getenv("LLM_MODEL", "deepseek-reasoner")
+    llm_json_model = os.getenv("LLM_JSON_MODEL", "")
     llm_embedding_model = os.getenv("LLM_EMBEDDING_MODEL", "")
     embedding_dim_raw = os.getenv("LLM_EMBEDDING_DIM", "").strip()
     llm_embedding_dim = int(embedding_dim_raw) if embedding_dim_raw else None
     llm_timeout = float(os.getenv("LLM_TIMEOUT", "30"))
+    llm_quiz_timeout = float(os.getenv("LLM_QUIZ_TIMEOUT", str(llm_timeout)))
     llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "512"))
     deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
     llm_tools_enabled = os.getenv("LLM_TOOLS_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
@@ -100,9 +104,11 @@ def load_settings() -> Settings:
         llm_provider=llm_provider,
         llm_base_url=llm_base_url,
         llm_model=llm_model,
+        llm_json_model=llm_json_model,
         llm_embedding_model=llm_embedding_model,
         llm_embedding_dim=llm_embedding_dim,
         llm_timeout=llm_timeout,
+        llm_quiz_timeout=llm_quiz_timeout,
         llm_max_tokens=llm_max_tokens,
         deepseek_api_key=deepseek_api_key,
         llm_tools_enabled=llm_tools_enabled,

@@ -30,6 +30,7 @@ def build_llm_client(settings: Settings):
             base_url=base_url,
             api_key=api_key,
             model=settings.llm_model,
+            json_model=settings.llm_json_model,
             timeout=settings.llm_timeout,
             max_tokens=settings.llm_max_tokens,
         )

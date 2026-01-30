@@ -17,12 +17,14 @@ class RealLLMClient(LLMClient):
         base_url: str,
         api_key: str,
         model: str,
+        json_model: str | None = None,
         timeout: float = 30.0,
         max_tokens: int = 512,
     ):
         self.base_url = normalize_base_url(base_url)
         self.api_key = api_key
         self.model = model
+        self.json_model = json_model or ""
         self.timeout = timeout
         self.max_tokens = max_tokens
 
@@ -37,20 +39,29 @@ class RealLLMClient(LLMClient):
             return "资料中未找到相关内容"
 
         if raw_json:
-            system_prompt = "你是严格的JSON生成器。只输出JSON，不要任何多余文本。"
+            system_prompt = "你是严格的JSON生成器。只输出JSON，不要任何多余文本。不要输出推理过程。"
             user_prompt = query
         else:
             system_prompt = "你是学习助手。请仅基于提供的资料回答问题，避免引入资料之外的信息。"
             user_prompt = f"问题：{query}\n\n资料：\n{cleaned}\n\n请用简洁中文回答。"
+        model = self.model
+        if raw_json:
+            json_model = self.json_model.strip()
+            if not json_model and "reasoner" in (self.model or ""):
+                json_model = "deepseek-chat"
+            if json_model:
+                model = json_model
         payload = {
-            "model": self.model,
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.2,
-            "max_tokens": self.max_tokens if not raw_json else max(self.max_tokens, 800),
+            "temperature": 0.0 if raw_json else 0.2,
+            "max_tokens": self.max_tokens if not raw_json else max(self.max_tokens, 1500),
         }
+        if raw_json:
+            payload["response_format"] = {"type": "json_object"}
 
         headers = {"Authorization": f"Bearer {self.api_key}"}
         with httpx.Client(timeout=self.timeout) as client:
@@ -66,12 +77,24 @@ class RealLLMClient(LLMClient):
             raise RuntimeError("LLM response missing choices.")
         message = choices[0].get("message") or {}
         content = (message.get("content") or "").strip()
-        if raw_json and not content:
+        if not content:
             reasoning = (message.get("reasoning_content") or "").strip()
             if reasoning:
-                matches = re.findall(r"\{.*\}", reasoning, re.DOTALL)
-                if matches:
-                    content = matches[-1].strip()
+                if raw_json:
+                    matches = re.findall(r"\{.*?\}", reasoning, re.DOTALL)
+                    if matches:
+                        candidates = [m for m in matches if "\"stem\"" in m and "\"answer\"" in m]
+                        content = (candidates[-1] if candidates else matches[-1]).strip()
+                    else:
+                        start = reasoning.rfind("{")
+                        if start != -1:
+                            candidate = reasoning[start:].strip()
+                            balance = candidate.count("{") - candidate.count("}")
+                            if balance > 0:
+                                candidate += "}" * balance
+                            content = candidate
+                if not content:
+                    content = reasoning
         if not content:
             raise RuntimeError("LLM response missing content.")
         return content

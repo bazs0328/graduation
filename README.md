@@ -307,11 +307,15 @@ Default uses MockLLM + HashEmbedder. To enable Deepseek, only `DEEPSEEK_API_KEY`
 DEEPSEEK_API_KEY=your_key
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-reasoner
+LLM_QUIZ_TIMEOUT=30
+LLM_JSON_MODEL=deepseek-chat
 ```
 
 Notes:
 - docker compose 会读取根目录 `.env` 并注入到 backend 容器。
 - 未配置 `DEEPSEEK_API_KEY` 时自动回退 Mock/Hash，保证可运行。
+- 如测验生成出现“模板化/超时”，可适当提高 `LLM_QUIZ_TIMEOUT`。
+- `LLM_JSON_MODEL` 用于结构化JSON输出（如测验题），默认对 reasoner 走 chat 模型以保证JSON稳定。
 - 如需真实向量，请额外设置：
   - `LLM_EMBEDDING_MODEL=your_embedding_model`
   - `LLM_EMBEDDING_DIM=embedding_dim`

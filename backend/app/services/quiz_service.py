@@ -18,10 +18,11 @@ from app.services.profile_service import (
 )
 from app.services.llm.base import LLMClient
 from app.services.llm.mock import MockLLM
+from app.services.llm.real import RealLLMClient
 
 DEFAULT_SESSION_ID = "default"
 MAX_SNIPPET_LENGTH = 120
-LLM_QUIZ_TIMEOUT = 8
+DEFAULT_QUIZ_TIMEOUT = 8
 logger = logging.getLogger(__name__)
 SHORT_LIKE_TYPES = {"short", "fill_blank", "calculation", "written"}
 
@@ -93,31 +94,37 @@ def _build_llm_question_prompt(
     related_concept: str,
 ) -> str:
     type_spec = QUESTION_TYPE_SPECS.get(question_type, QUESTION_TYPE_SPECS["short"])
+    base = (
+        "你是测验题生成器，请严格基于资料片段生成一道题目。\n"
+        "请严格按以下格式输出（不要多余解释）：\n"
+        "题干：...\n"
+        "A. ...\nB. ...\nC. ...\nD. ...\n"
+        "正确答案：A/B/C/D\n"
+        "解析：...\n"
+        "难度理由：...\n"
+        "考点：...\n"
+        "复习建议：...\n"
+        "下一步：...\n"
+    )
+    if question_type != "single":
+        base = (
+            "你是测验题生成器，请严格基于资料片段生成一道题目。\n"
+            "请严格按以下格式输出（不要多余解释）：\n"
+            "题干：...\n"
+            "参考答案：...\n"
+            "解析：...\n"
+            "难度理由：...\n"
+            "考点：...\n"
+            "复习建议：...\n"
+            "下一步：...\n"
+        )
     return (
-        "你是测验题生成器，请严格基于资料片段生成一道题目，并给出结构化JSON。\n"
-        "只输出JSON，不要其他文本。\n"
-        "JSON结构：\n"
-        "{"
-        "\"stem\":\"题干\","
-        "\"options\":[\"选项A\",\"选项B\",\"选项C\",\"选项D\"],"
-        "\"answer\":{"
-        "\"choice\":\"A\"|\"value\":true|\"reference_answer\":\"...\""
-        "},"
-        "\"explanation\":\"解析（1-2句）\","
-        "\"difficulty_reason\":\"难度理由（1-2句）\","
-        "\"key_points\":[\"考点1\",\"考点2\"],"
-        "\"review_suggestion\":\"复习建议（1句）\","
-        "\"next_step\":\"下一步行动（1句）\","
-        "\"validation\":{\"kb_coverage\":\"low|medium|high\",\"extension_points\":\"说明\"}"
-        "}\n"
-        "要求：\n"
+        base
+        + "要求：\n"
         f"1) 题型：{question_type}（{type_spec}）\n"
         f"2) 难度：{difficulty}\n"
         "3) 必须引用资料片段信息，不得引入资料外内容。\n"
-        "4) 若题型不是单选题，options 置为空数组。\n"
-        f"5) 参考考点：{related_concept}\n"
-        "资料片段：\n"
-        f"{snippet}\n"
+        f"4) 参考考点：{related_concept}\n"
     )
 
 
@@ -129,15 +136,21 @@ def _parse_llm_question_json(raw: str, question_type: str) -> Optional[Dict[str,
     if cleaned.startswith("{") and cleaned.endswith("}"):
         payload = cleaned
     else:
-        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if match:
-            payload = match.group(0)
-    if not payload:
-        return None
+        matches = re.findall(r"\{.*?\}", cleaned, re.DOTALL)
+        for candidate in reversed(matches):
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict) and parsed.get("stem"):
+                payload = candidate
+                break
+        if not payload:
+            return _parse_llm_question_text(raw, question_type)
     try:
         data = json.loads(payload)
     except json.JSONDecodeError:
-        return None
+        return _parse_llm_question_text(raw, question_type)
 
     stem = str(data.get("stem") or "").strip()
     explanation = str(data.get("explanation") or "").strip()
@@ -185,6 +198,107 @@ def _parse_llm_question_json(raw: str, question_type: str) -> Optional[Dict[str,
         "review_suggestion": str(data.get("review_suggestion") or "").strip(),
         "next_step": str(data.get("next_step") or "").strip(),
         "validation": data.get("validation") if isinstance(data.get("validation"), dict) else None,
+    }
+
+
+def _parse_llm_question_text(raw: str, question_type: str) -> Optional[Dict[str, Any]]:
+    text = raw.strip()
+    if not text:
+        return None
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    def _split_value(line: str) -> str:
+        if "：" in line:
+            return line.split("：", 1)[1].strip()
+        if ":" in line:
+            return line.split(":", 1)[1].strip()
+        return ""
+
+    stem = ""
+    explanation = ""
+    difficulty_reason = ""
+    review_suggestion = ""
+    next_step = ""
+    key_points_line = ""
+    options: List[str] = []
+
+    for line in lines:
+        lowered = line.lower()
+        if not stem and (line.startswith("题干") or lowered.startswith("stem")):
+            stem = _split_value(line)
+        if not explanation and (line.startswith("解析") or lowered.startswith("explanation")):
+            explanation = _split_value(line)
+        if not difficulty_reason and (line.startswith("难度理由") or lowered.startswith("difficulty_reason")):
+            difficulty_reason = _split_value(line)
+        if not review_suggestion and (line.startswith("复习建议") or lowered.startswith("review_suggestion")):
+            review_suggestion = _split_value(line)
+        if not next_step and (line.startswith("下一步") or lowered.startswith("next_step")):
+            next_step = _split_value(line)
+        if not key_points_line and (line.startswith("考点") or lowered.startswith("key_points")):
+            key_points_line = _split_value(line)
+
+    for line in lines:
+        match = re.match(r"^[A-D][.．、)]\s*(.+)$", line)
+        if match:
+            options.append(match.group(1).strip())
+    if len(options) < 2:
+        list_match = re.search(r"\"?options\"?[:：]\\s*\\[(.+?)\\]", text, re.DOTALL)
+        if list_match:
+            raw_options = list_match.group(1)
+            candidates = [item.strip().strip('\"').strip() for item in raw_options.split(",")]
+            options = [item for item in candidates if item]
+
+    answer_choice = ""
+    answer_text = ""
+    if question_type == "single":
+        for line in lines:
+            if "正确答案" in line or "正确选项" in line or "答案" in line or "answer" in line.lower():
+                match = re.search(r"([A-D])", line)
+                if match:
+                    answer_choice = match.group(1)
+                    break
+        answer = {"choice": (answer_choice or "A").strip().upper()}
+    elif question_type == "judge":
+        verdict = ""
+        for line in lines:
+            if "答案" in line or "answer" in line.lower():
+                verdict = line
+                break
+        truth = any(token in verdict for token in ("正确", "对", "true", "True"))
+        answer = {"value": truth}
+    else:
+        for line in lines:
+            if "参考答案" in line or "答案" in line or "answer" in line.lower():
+                answer_text = _split_value(line)
+                break
+        answer = {"reference_answer": answer_text or "根据资料回答。"}
+
+    key_points = []
+    if key_points_line:
+        key_points = [item.strip() for item in re.split(r"[，,、;；]", key_points_line) if item.strip()]
+
+    if question_type == "fill_blank" and stem and "____" not in stem:
+        stem = f"{stem} ____"
+
+    if question_type == "single" and len(options) < 4:
+        options = (options + ["无关选项"] * 4)[:4]
+    if question_type in {"short", "written", "fill_blank", "calculation"}:
+        options = []
+
+    if not stem:
+        return None
+
+    return {
+        "stem": stem,
+        "options": options,
+        "answer": answer,
+        "explanation": explanation,
+        "difficulty_reason": difficulty_reason,
+        "key_points": key_points,
+        "review_suggestion": review_suggestion,
+        "next_step": next_step,
+        "validation": None,
     }
 
 
@@ -241,6 +355,7 @@ def _build_question_payload(
     difficulty: str,
     chunk: models.Chunk,
     use_llm: bool,
+    llm_timeout: float,
 ) -> Tuple[models.QuizQuestion, Dict[str, Any]]:
     normalized_type = _normalize_question_type(question_type)
     snippet = _extract_snippet(chunk.text or "")
@@ -253,8 +368,8 @@ def _build_question_payload(
     parsed = None
     if use_llm:
         prompt = _build_llm_question_prompt(normalized_type, difficulty, snippet or "", related_concept)
-        llm_raw = _safe_llm_generate_raw(llm, prompt)
-        parsed = _parse_llm_question_json(llm_raw, normalized_type)
+        llm_text = _safe_llm_generate(llm, prompt, snippet or "", llm_timeout)
+        parsed = _parse_llm_question_json(llm_text, normalized_type)
 
     if parsed and parsed.get("stem"):
         stem = parsed["stem"]
@@ -282,7 +397,7 @@ def _build_question_payload(
             answer = {"value": True}
             stem = f"判断正误：{snippet}" if snippet else "判断正误：资料片段为空"
         else:
-            summary = _safe_llm_generate(llm, "概括要点", snippet or "")
+            summary = _safe_llm_generate(llm, "概括要点", snippet or "", llm_timeout)
             answer = {"reference_answer": summary}
             stem = f"简要概括以下内容的要点：{snippet}" if snippet else "简要概括以下内容的要点："
             options = []
@@ -320,11 +435,11 @@ def _build_question_payload(
     return question, payload
 
 
-def _safe_llm_generate(llm: LLMClient, query: str, context: str) -> str:
+def _safe_llm_generate(llm: LLMClient, query: str, context: str, timeout: float) -> str:
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     future = executor.submit(llm.generate_answer, query, context)
     try:
-        return future.result(timeout=LLM_QUIZ_TIMEOUT)
+        return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
         future.cancel()
         logger.warning("LLM generate timed out, falling back to MockLLM.")
@@ -344,41 +459,6 @@ def _safe_llm_generate(llm: LLMClient, query: str, context: str) -> str:
         executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _safe_llm_generate_raw(llm: LLMClient, prompt: str) -> str:
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(llm.generate_answer, f"RAW_JSON:{prompt}", "")
-    try:
-        return future.result(timeout=LLM_QUIZ_TIMEOUT)
-    except concurrent.futures.TimeoutError:
-        future.cancel()
-        logger.warning("LLM raw generate timed out, falling back to MockLLM.")
-        try:
-            return MockLLM().generate_answer(f"RAW_JSON:{prompt}", "")
-        except Exception:
-            logger.exception("MockLLM raw fallback failed.")
-            return ""
-    except Exception as exc:
-        logger.warning("LLM raw generate failed, falling back to MockLLM: %s", exc)
-        try:
-            return MockLLM().generate_answer(f"RAW_JSON:{prompt}", "")
-        except Exception:
-            logger.exception("MockLLM raw fallback failed.")
-            return ""
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-
-def _try_llm_raw(llm: LLMClient, prompt: str) -> Optional[str]:
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(llm.generate_answer, f"RAW_JSON:{prompt}", "")
-    try:
-        return future.result(timeout=LLM_QUIZ_TIMEOUT)
-    except Exception:
-        return None
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-
 def generate_quiz(
     db: Session,
     index_manager: IndexManager,
@@ -389,6 +469,7 @@ def generate_quiz(
     types: Sequence[str],
     focus_concepts: Optional[Sequence[str]],
     llm_client: Optional[LLMClient] = None,
+    llm_timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
     normalized_session = (session_id or "").strip() or DEFAULT_SESSION_ID
     resolved_doc_ids: Optional[Sequence[int]] = doc_ids or ([document_id] if document_id else None)
@@ -412,7 +493,22 @@ def generate_quiz(
     normalized_types = [_normalize_question_type(item) for item in (types or ["single"])]
     type_cycle = cycle(normalized_types)
     llm = llm_client or MockLLM()
-    use_llm = isinstance(llm, MockLLM) or bool(_try_llm_raw(llm, "仅返回{\"ok\":true}"))
+    quiz_llm = llm
+    if isinstance(llm, RealLLMClient):
+        json_model = (llm.json_model or "").strip()
+        if not json_model and "reasoner" in (llm.model or ""):
+            json_model = "deepseek-chat"
+        if json_model and json_model != llm.model:
+            quiz_llm = RealLLMClient(
+                base_url=llm.base_url,
+                api_key=llm.api_key,
+                model=json_model,
+                json_model=llm.json_model,
+                timeout=llm.timeout,
+                max_tokens=llm.max_tokens,
+            )
+    quiz_timeout = llm_timeout or DEFAULT_QUIZ_TIMEOUT
+    use_llm = True
 
     quiz = models.Quiz(
         session_id=normalized_session,
@@ -434,7 +530,14 @@ def generate_quiz(
         chunk = next(chunk_cycle)
         question_type = next(type_cycle)
         difficulty = next(difficulty_cycle)
-        question, payload = _build_question_payload(llm, question_type, difficulty, chunk, use_llm)
+        question, payload = _build_question_payload(
+            quiz_llm,
+            question_type,
+            difficulty,
+            chunk,
+            use_llm,
+            quiz_timeout,
+        )
         question.quiz_id = quiz.id
         db.add(question)
         questions.append(question)
