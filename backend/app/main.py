@@ -407,6 +407,14 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             break
 
     match_mode = "exact" if has_exact else "semantic"
+    if match_mode == "exact":
+        filtered_results = [
+            item
+            for item in matched_results
+            if _match_score(query_tokens, chunks_by_id.get(item["chunk_id"], "")) > 0
+        ]
+        if filtered_results:
+            matched_results = filtered_results
 
     context = ""
     if matched_results:
@@ -610,13 +618,31 @@ def _parse_structured_json(raw: str, allowed_chunk_ids: set[int]) -> dict | None
             continue
         if not quote:
             continue
+        if _looks_like_placeholder(quote):
+            continue
         cleaned_evidence.append({"chunk_id": chunk_id, "quote": quote})
+    if _looks_like_placeholder(conclusion) or _looks_like_placeholder(reasoning):
+        return None
     return {
         "conclusion": conclusion,
         "evidence": cleaned_evidence,
         "reasoning": reasoning,
         "next_steps": [step for step in next_steps if isinstance(step, str) and step.strip()],
     }
+
+
+def _looks_like_placeholder(text: str) -> bool:
+    if not text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "结论（1-2句）",
+            "推理过程（1-3句）",
+            "引用资料原句片段",
+            "下一步建议",
+        )
+    )
 
 
 def _build_evidence_fallback(sources: list[dict], chunks_by_id: dict[int, str]) -> list[dict]:
