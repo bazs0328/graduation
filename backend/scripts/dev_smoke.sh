@@ -174,7 +174,11 @@ def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | 
     headers = {"X-Session-Id": session_id}
     quiz_payload = http_post_json(
         "/quiz/generate",
-        {"document_id": doc_id, "count": 5, "types": ["single", "judge", "short"]},
+        {
+            "document_id": doc_id,
+            "count": 5,
+            "types": ["single", "judge", "short", "fill_blank", "calculation", "written"],
+        },
         headers=headers,
     )
     print(quiz_payload)
@@ -190,6 +194,9 @@ def generate_quiz(session_id: str, label: str = "Quiz generate") -> tuple[int | 
     first_sources = []
     if questions and isinstance(questions[0], dict):
         first_sources = questions[0].get("source_chunk_ids") or []
+        for field in ("difficulty_reason", "key_points", "review_suggestion", "next_step", "validation"):
+            if questions[0].get(field) in (None, "", []):
+                raise SystemExit(f"quiz missing {field}")
     resolve_sources("Quiz sources resolve", first_sources)
     return quiz_id, questions, plan
 

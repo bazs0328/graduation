@@ -224,14 +224,15 @@ Notes:
 - `X-Session-Id` is required for all `/research` endpoints; missing header returns 400.
 - Session mismatch returns 403 with `{code,message,details}`; missing id returns 404.
 
-### Quiz generate (Phase 2 Easy-only)
+### Quiz generate (LLM enhanced)
 
 ```
-curl -X POST http://localhost:8000/quiz/generate -H "Content-Type: application/json" -d '{"document_id":1,"count":5,"types":["single","judge","short"]}'
+curl -X POST http://localhost:8000/quiz/generate -H "Content-Type: application/json" -d '{"document_id":1,"count":5,"types":["single","judge","short","fill_blank","calculation","written"]}'
 ```
 
 Notes:
 - `/quiz/generate` 返回 `difficulty_plan` 并写入 quizzes.difficulty_plan_json；初学者 Hard=0，Easy 占比更高。
+- 每题会附带 `difficulty_reason` / `key_points` / `review_suggestion` / `next_step` / `validation(kb_coverage,extension_points)` 用于结果页展示。
 
 ### Quiz submit (Phase 2 MVP)
 
