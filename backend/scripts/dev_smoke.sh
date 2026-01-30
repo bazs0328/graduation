@@ -21,10 +21,12 @@ python - <<'PY'
 import json
 import mimetypes
 import os
+import time
 import urllib.request
 import uuid
 
 base_url = os.environ.get("BASE_URL", "http://localhost:8000")
+auto_rebuild = os.environ.get("AUTO_REBUILD_INDEX", "1").strip().lower() in {"1", "true", "yes", "on"}
 sample_file = os.environ["SAMPLE_FILE"]
 
 
@@ -87,8 +89,12 @@ print(upload)
 doc_id = json.loads(upload).get("document_id")
 print(f"document_id={doc_id}")
 
-step("Rebuild index")
-print(http_post("/index/rebuild"))
+if not auto_rebuild:
+    step("Rebuild index")
+    print(http_post("/index/rebuild"))
+else:
+    step("Rebuild index (auto)")
+    print({"status": "auto", "debounce": True})
 
 step("Doc summary")
 if not doc_id:
@@ -100,8 +106,27 @@ else:
     if not summary_data.get("summary"):
         raise SystemExit("doc summary missing")
 
+def wait_for_search(max_attempts: int = 10) -> str:
+    last = ""
+    for _ in range(max_attempts):
+        try:
+            last = http_post_json("/search", {"query": "fox", "top_k": 5})
+            if json.loads(last):
+                return last
+        except Exception:
+            pass
+        time.sleep(1)
+    return last
+
+
 step("Search keyword")
-print(http_post_json("/search", {"query": "fox", "top_k": 5}))
+if auto_rebuild:
+    search_raw = wait_for_search()
+    if not search_raw:
+        raise SystemExit("auto rebuild search empty")
+    print(search_raw)
+else:
+    print(http_post_json("/search", {"query": "fox", "top_k": 5}))
 
 step("Chat question")
 chat_raw = http_post_json("/chat", {"query": "fox", "top_k": 5})

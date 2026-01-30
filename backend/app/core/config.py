@@ -27,6 +27,8 @@ class Settings:
     llm_tool_whitelist: str
     llm_tool_max_calls: int
     llm_tool_timeout: float
+    auto_rebuild_index: bool
+    index_rebuild_debounce_seconds: float
 
 
 def _build_database_url(
@@ -77,6 +79,13 @@ def load_settings() -> Settings:
     llm_tool_whitelist = os.getenv("LLM_TOOL_WHITELIST", "calc")
     llm_tool_max_calls = int(os.getenv("LLM_TOOL_MAX_CALLS", "2"))
     llm_tool_timeout = float(os.getenv("LLM_TOOL_TIMEOUT", "5"))
+    auto_rebuild_index = os.getenv("AUTO_REBUILD_INDEX", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    index_rebuild_debounce_seconds = float(os.getenv("INDEX_REBUILD_DEBOUNCE_SECONDS", "2"))
 
     return Settings(
         mysql_host=mysql_host,
@@ -100,4 +109,6 @@ def load_settings() -> Settings:
         llm_tool_whitelist=llm_tool_whitelist,
         llm_tool_max_calls=llm_tool_max_calls,
         llm_tool_timeout=llm_tool_timeout,
+        auto_rebuild_index=auto_rebuild_index,
+        index_rebuild_debounce_seconds=index_rebuild_debounce_seconds,
     )
