@@ -1,4 +1,6 @@
+import json
 import logging
+import concurrent.futures
 import re
 from datetime import datetime
 from itertools import cycle
@@ -19,7 +21,19 @@ from app.services.llm.mock import MockLLM
 
 DEFAULT_SESSION_ID = "default"
 MAX_SNIPPET_LENGTH = 120
+LLM_QUIZ_TIMEOUT = 8
 logger = logging.getLogger(__name__)
+SHORT_LIKE_TYPES = {"short", "fill_blank", "calculation", "written"}
+
+
+QUESTION_TYPE_SPECS = {
+    "single": "单选题，提供4个选项，只有一个正确。",
+    "judge": "判断题，答案为 true 或 false。",
+    "short": "简答题，给出1-2句参考答案。",
+    "fill_blank": "填空题，在题干中用“____”表示空缺。",
+    "calculation": "计算题，题干包含计算要求，答案为数值或简短算式结果。",
+    "written": "问答题，给出2-4句参考答案。",
+}
 
 
 class QuizSubmitError(Exception):
@@ -54,6 +68,124 @@ def _derive_concept(text: str) -> str:
     if not tokens:
         return "general"
     return tokens[0][:50]
+
+
+def _normalize_question_type(value: str) -> str:
+    if value in QUESTION_TYPE_SPECS:
+        return value
+    return "short"
+
+
+def _default_meta(related_concept: str, difficulty: str) -> Dict[str, Any]:
+    return {
+        "difficulty_reason": f"题目难度设为 {difficulty}，聚焦基础理解与资料复述。",
+        "key_points": [related_concept],
+        "review_suggestion": f"回顾资料中与“{related_concept}”相关的片段。",
+        "next_step": "结合资料做一次要点提炼并自查。",
+        "validation": {"kb_coverage": "low", "extension_points": "fallback"},
+    }
+
+
+def _build_llm_question_prompt(
+    question_type: str,
+    difficulty: str,
+    snippet: str,
+    related_concept: str,
+) -> str:
+    type_spec = QUESTION_TYPE_SPECS.get(question_type, QUESTION_TYPE_SPECS["short"])
+    return (
+        "你是测验题生成器，请严格基于资料片段生成一道题目，并给出结构化JSON。\n"
+        "只输出JSON，不要其他文本。\n"
+        "JSON结构：\n"
+        "{"
+        "\"stem\":\"题干\","
+        "\"options\":[\"选项A\",\"选项B\",\"选项C\",\"选项D\"],"
+        "\"answer\":{"
+        "\"choice\":\"A\"|\"value\":true|\"reference_answer\":\"...\""
+        "},"
+        "\"explanation\":\"解析（1-2句）\","
+        "\"difficulty_reason\":\"难度理由（1-2句）\","
+        "\"key_points\":[\"考点1\",\"考点2\"],"
+        "\"review_suggestion\":\"复习建议（1句）\","
+        "\"next_step\":\"下一步行动（1句）\","
+        "\"validation\":{\"kb_coverage\":\"low|medium|high\",\"extension_points\":\"说明\"}"
+        "}\n"
+        "要求：\n"
+        f"1) 题型：{question_type}（{type_spec}）\n"
+        f"2) 难度：{difficulty}\n"
+        "3) 必须引用资料片段信息，不得引入资料外内容。\n"
+        "4) 若题型不是单选题，options 置为空数组。\n"
+        f"5) 参考考点：{related_concept}\n"
+        "资料片段：\n"
+        f"{snippet}\n"
+    )
+
+
+def _parse_llm_question_json(raw: str, question_type: str) -> Optional[Dict[str, Any]]:
+    if not raw:
+        return None
+    payload = None
+    cleaned = raw.strip()
+    if cleaned.startswith("{") and cleaned.endswith("}"):
+        payload = cleaned
+    else:
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            payload = match.group(0)
+    if not payload:
+        return None
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+
+    stem = str(data.get("stem") or "").strip()
+    explanation = str(data.get("explanation") or "").strip()
+    options = data.get("options") or []
+    if not isinstance(options, list):
+        options = []
+    answer = data.get("answer") if isinstance(data.get("answer"), dict) else {}
+
+    if question_type == "fill_blank" and "____" not in stem:
+        stem = f"{stem} ____" if stem else "请填空：____"
+
+    if question_type == "single":
+        if len(options) < 4:
+            options = (options + ["无关选项"] * 4)[:4]
+        choice = str(answer.get("choice") or "A").strip().upper()
+        if choice not in {"A", "B", "C", "D"}:
+            choice = "A"
+        answer = {"choice": choice}
+    elif question_type == "judge":
+        value = answer.get("value")
+        if not isinstance(value, bool):
+            value = True
+        answer = {"value": value}
+    else:
+        ref = str(answer.get("reference_answer") or answer.get("value") or "").strip()
+        if not ref:
+            ref = "根据资料回答。"
+        answer = {"reference_answer": ref}
+        options = []
+
+    key_points = data.get("key_points") or []
+    if isinstance(key_points, str):
+        key_points = [key_points]
+    if not isinstance(key_points, list):
+        key_points = []
+    key_points = [str(item).strip() for item in key_points if str(item).strip()]
+
+    return {
+        "stem": stem,
+        "options": options,
+        "answer": answer,
+        "explanation": explanation,
+        "difficulty_reason": str(data.get("difficulty_reason") or "").strip(),
+        "key_points": key_points,
+        "review_suggestion": str(data.get("review_suggestion") or "").strip(),
+        "next_step": str(data.get("next_step") or "").strip(),
+        "validation": data.get("validation") if isinstance(data.get("validation"), dict) else None,
+    }
 
 
 def _ensure_documents_exist(db: Session, doc_ids: Sequence[int]) -> None:
@@ -108,49 +240,80 @@ def _build_question_payload(
     question_type: str,
     difficulty: str,
     chunk: models.Chunk,
+    use_llm: bool,
 ) -> Tuple[models.QuizQuestion, Dict[str, Any]]:
+    normalized_type = _normalize_question_type(question_type)
     snippet = _extract_snippet(chunk.text or "")
     related_concept = _derive_concept(chunk.text or "")
     explanation = f"依据资料片段：{snippet}" if snippet else None
     options: Optional[List[str]] = None
     answer: Dict[str, Any]
+    meta = _default_meta(related_concept, difficulty)
 
-    if question_type == "single":
-        options = [
-            snippet or "资料片段为空",
-            "无关选项一",
-            "无关选项二",
-            "无关选项三",
-        ]
-        answer = {"choice": "A"}
-        stem = "以下哪一项在资料中出现？"
-    elif question_type == "judge":
-        answer = {"value": True}
-        stem = f"判断正误：{snippet}" if snippet else "判断正误：资料片段为空"
+    parsed = None
+    if use_llm:
+        prompt = _build_llm_question_prompt(normalized_type, difficulty, snippet or "", related_concept)
+        llm_raw = _safe_llm_generate_raw(llm, prompt)
+        parsed = _parse_llm_question_json(llm_raw, normalized_type)
+
+    if parsed and parsed.get("stem"):
+        stem = parsed["stem"]
+        options = parsed["options"]
+        answer = parsed["answer"]
+        explanation = parsed.get("explanation") or explanation
+        meta = {
+            "difficulty_reason": parsed.get("difficulty_reason") or meta["difficulty_reason"],
+            "key_points": parsed.get("key_points") or meta["key_points"],
+            "review_suggestion": parsed.get("review_suggestion") or meta["review_suggestion"],
+            "next_step": parsed.get("next_step") or meta["next_step"],
+            "validation": parsed.get("validation") or meta["validation"],
+        }
     else:
-        summary = _safe_llm_generate(llm, "概括要点", snippet or "")
-        answer = {"reference_answer": summary}
-        stem = f"简要概括以下内容的要点：{snippet}" if snippet else "简要概括以下内容的要点："
+        if normalized_type == "single":
+            options = [
+                snippet or "资料片段为空",
+                "无关选项一",
+                "无关选项二",
+                "无关选项三",
+            ]
+            answer = {"choice": "A"}
+            stem = "以下哪一项在资料中出现？"
+        elif normalized_type == "judge":
+            answer = {"value": True}
+            stem = f"判断正误：{snippet}" if snippet else "判断正误：资料片段为空"
+        else:
+            summary = _safe_llm_generate(llm, "概括要点", snippet or "")
+            answer = {"reference_answer": summary}
+            stem = f"简要概括以下内容的要点：{snippet}" if snippet else "简要概括以下内容的要点："
+            options = []
+
+    answer_with_meta = dict(answer)
+    answer_with_meta["_meta"] = meta
 
     question = models.QuizQuestion(
         quiz_id=0,
-        type=question_type,
+        type=normalized_type,
         difficulty=difficulty,
         stem=stem,
         options_json=options,
-        answer_json=answer,
+        answer_json=answer_with_meta,
         explanation=explanation,
         related_concept=related_concept,
         source_chunk_ids_json=[chunk.id],
     )
 
     payload = {
-        "type": question_type,
+        "type": normalized_type,
         "difficulty": difficulty,
         "stem": stem,
         "options": options,
         "answer": answer,
         "explanation": explanation,
+        "difficulty_reason": meta["difficulty_reason"],
+        "key_points": meta["key_points"],
+        "review_suggestion": meta["review_suggestion"],
+        "next_step": meta["next_step"],
+        "validation": meta["validation"],
         "source_chunk_ids": [chunk.id],
         "related_concept": related_concept,
     }
@@ -158,8 +321,18 @@ def _build_question_payload(
 
 
 def _safe_llm_generate(llm: LLMClient, query: str, context: str) -> str:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(llm.generate_answer, query, context)
     try:
-        return llm.generate_answer(query, context)
+        return future.result(timeout=LLM_QUIZ_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        logger.warning("LLM generate timed out, falling back to MockLLM.")
+        try:
+            return MockLLM().generate_answer(query, context)
+        except Exception:
+            logger.exception("MockLLM fallback failed.")
+            raise
     except Exception as exc:
         logger.warning("LLM generate failed, falling back to MockLLM: %s", exc)
         try:
@@ -167,6 +340,43 @@ def _safe_llm_generate(llm: LLMClient, query: str, context: str) -> str:
         except Exception:
             logger.exception("MockLLM fallback failed.")
             raise
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _safe_llm_generate_raw(llm: LLMClient, prompt: str) -> str:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(llm.generate_answer, f"RAW_JSON:{prompt}", "")
+    try:
+        return future.result(timeout=LLM_QUIZ_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        logger.warning("LLM raw generate timed out, falling back to MockLLM.")
+        try:
+            return MockLLM().generate_answer(f"RAW_JSON:{prompt}", "")
+        except Exception:
+            logger.exception("MockLLM raw fallback failed.")
+            return ""
+    except Exception as exc:
+        logger.warning("LLM raw generate failed, falling back to MockLLM: %s", exc)
+        try:
+            return MockLLM().generate_answer(f"RAW_JSON:{prompt}", "")
+        except Exception:
+            logger.exception("MockLLM raw fallback failed.")
+            return ""
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _try_llm_raw(llm: LLMClient, prompt: str) -> Optional[str]:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(llm.generate_answer, f"RAW_JSON:{prompt}", "")
+    try:
+        return future.result(timeout=LLM_QUIZ_TIMEOUT)
+    except Exception:
+        return None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def generate_quiz(
@@ -199,8 +409,10 @@ def generate_quiz(
 
     chunks = _retrieve_chunks(db, index_manager, resolved_doc_ids, focus_concepts, count)
     chunk_cycle = cycle(chunks)
-    type_cycle = cycle(types or ["single"])
+    normalized_types = [_normalize_question_type(item) for item in (types or ["single"])]
+    type_cycle = cycle(normalized_types)
     llm = llm_client or MockLLM()
+    use_llm = isinstance(llm, MockLLM) or bool(_try_llm_raw(llm, "仅返回{\"ok\":true}"))
 
     quiz = models.Quiz(
         session_id=normalized_session,
@@ -222,7 +434,7 @@ def generate_quiz(
         chunk = next(chunk_cycle)
         question_type = next(type_cycle)
         difficulty = next(difficulty_cycle)
-        question, payload = _build_question_payload(llm, question_type, difficulty, chunk)
+        question, payload = _build_question_payload(llm, question_type, difficulty, chunk, use_llm)
         question.quiz_id = quiz.id
         db.add(question)
         questions.append(question)

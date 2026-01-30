@@ -12,6 +12,21 @@ class MockLLM(LLMClient):
 
     def generate_answer(self, query: str, context: str) -> str:
         if query.startswith("RAW_JSON:"):
+            payload = query[len("RAW_JSON:") :].strip()
+            if any(marker in payload for marker in ("题干", "题型", "测验", "单选题", "判断题", "填空题")):
+                return (
+                    "{"
+                    "\"stem\":\"根据资料回答问题\","
+                    "\"options\":[\"选项A\",\"选项B\",\"选项C\",\"选项D\"],"
+                    "\"answer\":{\"choice\":\"A\"},"
+                    "\"explanation\":\"依据资料片段给出解析。\","
+                    "\"difficulty_reason\":\"难度设为易，便于基础理解。\","
+                    "\"key_points\":[\"核心概念\"],"
+                    "\"review_suggestion\":\"回顾资料要点。\","
+                    "\"next_step\":\"尝试用自己的话复述。\","
+                    "\"validation\":{\"kb_coverage\":\"low\",\"alignment\":\"mock\"}"
+                    "}"
+                )
             return "{\"conclusion\":\"资料中未找到相关内容\",\"evidence\":[],\"reasoning\":\"\",\"next_steps\":[]}"
         cleaned = context.strip()
         if not cleaned:
